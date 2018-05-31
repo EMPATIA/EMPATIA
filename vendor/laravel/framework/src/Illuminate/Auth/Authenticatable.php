@@ -28,7 +28,7 @@ trait Authenticatable
      */
     public function getAuthIdentifier()
     {
-        return $this->getKey();
+        return $this->{$this->getAuthIdentifierName()};
     }
 
     /**
@@ -44,12 +44,12 @@ trait Authenticatable
     /**
      * Get the token value for the "remember me" session.
      *
-     * @return string
+     * @return string|null
      */
     public function getRememberToken()
     {
         if (! empty($this->getRememberTokenName())) {
-            return $this->{$this->getRememberTokenName()};
+            return (string) $this->{$this->getRememberTokenName()};
         }
     }
 

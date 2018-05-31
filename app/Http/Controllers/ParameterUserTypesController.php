@@ -103,6 +103,7 @@ class ParameterUserTypesController extends Controller
     protected $keysRequired = [
         'mandatory',
         'parameter_unique',
+        'anonymizable',
         'parameter_type_code',
         'translations'
     ];
@@ -114,23 +115,67 @@ class ParameterUserTypesController extends Controller
     public function index(Request $request)
     {
         try {
-            $parameterUserTypes = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->firstOrFail()->parameterUserTypes()->with('parameterType')->get();
-
-            $primaryLanguage = $request->header('LANG-CODE');
-            $defaultLanguage = $request->header('LANG-CODE-DEFAULT');
-
-            foreach ($parameterUserTypes as $parameterUserType) {
-                $parameterUserType->newTranslation($primaryLanguage,$defaultLanguage);
-
-                $parameterUserOptions = $parameterUserType->parameterUserOptions()->get();
-                foreach ($parameterUserOptions as $parameterUserOption) {
-                    $parameterUserOption->newTranslation($primaryLanguage,$defaultLanguage);
-                }
-
-                $parameterUserType['parameter_user_options'] = $parameterUserOptions;
+            if (empty($request->header('X-ENTITY-KEY'))){
+                $parameterUserTypes = ParameterUserType::with('parameterType');
+            }
+            else{
+                $parameterUserTypes = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->firstOrFail()->parameterUserTypes()->with('parameterType');
             }
 
-            return response()->json(['data' => $parameterUserTypes], 200);
+            $tableData = $request->input('tableData') ?? null;
+            $recordsTotal = $parameterUserTypes->count();
+            /* $recordsTotal = $emailList->count(\DB::raw('DISTINCT email_key'));*/
+            $query = $parameterUserTypes/*->groupBy("email_key")*/;
+
+            $query = $query
+                ->orderBy($tableData['order']['value'], $tableData['order']['dir']);
+
+            if(!empty($tableData['search']['value'])) {
+                $query = $query
+                    ->where(function($q) use ($tableData) {
+                        $q
+                            ->orWhere('parameter_user_type_key', 'like', '%'.$tableData['search']['value'].'%')
+                            ->orWhere('code', 'like', '%'.$tableData['search']['value'].'%')
+                            ->orWhere('created_at', 'like', '%'.$tableData['search']['value'].'%')
+                            ->orWhere('id', '=', $tableData['search']['value'])
+                            ->orWhereHas("parameterUserTypeTranslations", function($q) use($tableData) {
+                                $q
+                                    ->where("name","LIKE","%" . $tableData['search']['value'] . "%")
+                                    ->orWhere("description","LIKE","%" . $tableData['search']['value'] . "%");
+                            });
+                    });
+            } 
+            
+            $recordsFiltered = $query->count();
+            
+            $parametersList = $query
+                ->skip($tableData['start'])
+                ->take($tableData['length'])
+                ->get();
+            
+
+                $primaryLanguage = $request->header('LANG-CODE');
+                $defaultLanguage = $request->header('LANG-CODE-DEFAULT');
+    
+                foreach ($parametersList as $parameterUserType) {
+                    $parameterUserType->newTranslation($primaryLanguage,$defaultLanguage);
+    
+                    $parameterUserOptions = $parameterUserType->parameterUserOptions()->get();
+                    foreach ($parameterUserOptions as $parameterUserOption) {
+                        $parameterUserOption->newTranslation($primaryLanguage,$defaultLanguage);
+                    }
+    
+                    $parameterUserType['parameter_user_options'] = $parameterUserOptions;
+                }
+
+
+            
+            $data['parametersUserType'] = $parametersList;
+            $data['recordsTotal'] = $recordsTotal;
+            $data['recordsFiltered'] = $recordsFiltered;
+            
+            return response()->json($data, 200);
+
         } catch (Exception $e) {
             return response()->json(['error' => 'Failed to retrieve the Parameters User Types list'], 500);
         }
@@ -219,18 +264,12 @@ class ParameterUserTypesController extends Controller
 
             $parameterUserType = $parameterUserType->with('parameterType')->firstOrFail();
 
-            if (!($parameterUserType->translation($request->header('LANG-CODE')))) {
-                if (!$parameterUserType->translation($request->header('LANG-CODE-DEFAULT')))
-                    return response()->json(['error' => 'No translation found'], 404);
-            }
+            $parameterUserType->newTranslation($request->header('LANG-CODE'), $request->header('LANG-CODE-DEFAULT'));
 
             $parameterUserOptions = $parameterUserType->parameterUserOptions()->get();
 
             foreach ($parameterUserOptions as $parameterUserOption) {
-                if (!($parameterUserOption->translation($request->header('LANG-CODE')))) {
-                    if (!$parameterUserOption->translation($request->header('LANG-CODE-DEFAULT')))
-                        return response()->json(['error' => 'No translation found'], 404);
-                }
+                $parameterUserOptions->newTranslation($request->header('LANG-CODE'), $request->header('LANG-CODE-DEFAULT'));
             }
 
             $parameterUserType['parameter_user_options'] = $parameterUserOptions;
@@ -364,7 +403,11 @@ class ParameterUserTypesController extends Controller
                     'code'                      =>$request->json('parameter_code'),
                     'parameter_type_id'         =>$parameterType->id,
                     'mandatory'                 =>$request->json('mandatory'),
-                    'parameter_unique'          =>$request->json('parameter_unique')
+                    'parameter_unique'          =>$request->json('parameter_unique'),
+                    'anonymizable'              =>$request->json('anonymizable'),
+                    'minimum_users'             =>$request->json('minimum_users'),
+                    'vote_in_person'            =>$request->json('vote_in_person'),
+                    'external_validation'       =>$request->json('external_validation')
                 ]
             );
 
@@ -504,12 +547,17 @@ class ParameterUserTypesController extends Controller
             $parameterUserType->code = $request->json('parameter_code');
             $parameterUserType->mandatory = $request->json('mandatory');
             $parameterUserType->parameter_unique = $request->json('parameter_unique');
+            $parameterUserType->anonymizable = $request->json('anonymizable');
+            $parameterUserType->minimum_users = $request->json('minimum_users');
+            $parameterUserType->vote_in_person = $request->json('vote_in_person');
+            $parameterUserType->external_validation = $request->json('external_validation');
             $parameterUserType->save();
 
             $translationsId = $parameterUserType->parameterUserTypeTranslations()->get();
             foreach ($translationsId as $translationId){
                 $translationsOld[] = $translationId->id;
             }
+
 
             foreach($request->json('translations') as $translation){
                 if (isset($translation['language_code']) && isset($translation['name'])){
@@ -567,7 +615,6 @@ class ParameterUserTypesController extends Controller
                         }
 
                         $parameterUserOptionsNew[] = $parameterUserOption->id;
-
                     } else {
                         $optionTranslationsOld = [];
                         $optionTranslationsNew = [];
@@ -585,21 +632,19 @@ class ParameterUserTypesController extends Controller
                                 $parameterUserOptionTranslations = $parameterUserOption->parameterUserOptionTranslations()->whereLanguageCode($translation['language_code'])->first();
                                 if (empty($parameterUserOptionTranslations)) {
                                     $parameterUserOptionTranslations = $parameterUserOption->parameterUserOptionTranslations()->create(
-                                        [
-                                            'language_code' => $translation['language_code'],
+                                    [
+                                    'language_code' => $translation['language_code'],
                                             'name' => $translation['name'],
-                                            'description' => $translation['description']
                                         ]
                                     );
+
                                 } else {
                                     $parameterUserOptionTranslations->name = $translation['name'];
-                                    $parameterUserOptionTranslations->description = $translation['description'];
                                     $parameterUserOptionTranslations->save();
                                 }
                                 $optionTranslationsNew[] = $parameterUserOptionTranslations->id;
                             }
                         }
-
                         $deleteTranslations = array_diff($optionTranslationsOld, $optionTranslationsNew);
                         foreach ($deleteTranslations as $deleteTranslation) {
                             $deleteId = $parameterUserOption->parameterUserOptionTranslations()->whereId($deleteTranslation)->first();
@@ -726,6 +771,7 @@ class ParameterUserTypesController extends Controller
             $parameterUserTypes = ParameterUserType::whereIn('parameter_type_id', $parameterTypeIds)->get();
 
             foreach ($parameterUserTypes as $parameterUserType) {
+                $parameterUserType->newTranslation($request->header('LANG-CODE'), $request->header('LANG-CODE-DEFAULT'));
                 if (!($parameterUserType->translation($request->header('LANG-CODE')))) {
                     if (!$parameterUserType->translation($request->header('LANG-CODE-DEFAULT')))
                         return response()->json(['error' => 'No translation found'], 404);

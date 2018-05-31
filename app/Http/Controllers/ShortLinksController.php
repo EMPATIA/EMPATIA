@@ -38,10 +38,14 @@ class ShortLinksController extends Controller
 
             if(!empty($tableData['search']['value'])) {
                 $query = $query
-                    ->where('short_link_key', 'like', '%'.$tableData['search']['value'].'%')
-                    ->orWhere('name', 'like', '%'.$tableData['search']['value'].'%')
-                    ->orWhere('code', 'like', '%'.$tableData['search']['value'].'%')
-                    ->orWhere('url', 'like', '%'.$tableData['search']['value'].'%');
+                    ->where(function($q) use ($tableData) {
+                        $q
+                            ->where('short_link_key', 'like', '%'.$tableData['search']['value'].'%')
+                            ->orWhere('name', 'like', '%'.$tableData['search']['value'].'%')
+                            ->orWhere('code', 'like', '%'.$tableData['search']['value'].'%')
+                            ->orWhere('url', 'like', '%'.$tableData['search']['value'].'%')
+                            ->orWhere('hits', '=', $tableData['search']['value']);
+                    });
             }
 
             $recordsFiltered = $query->count();

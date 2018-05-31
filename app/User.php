@@ -89,4 +89,25 @@ class User extends Model implements AuthenticatableContract,
     public function UserQuestionnaireUniqueKey() {
         return $this->hasMany('App\UserQuestionnaireUniqueKey');
     }
+
+    public function anonymization() {
+        return $this->hasOne('App\UserAnonymization','user_key','user_key');
+    }
+    /**
+     * An User  belongs to many AllPermissions     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     */
+    public function userPermissions()
+    {
+        return $this->belongsToMany('App\AllPermission','all_permission_users','user_id','all_permission_code');
+    }
+
+    /**
+     * An User  belongs to many CbPermissions     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     */
+    public function userCbPermissions()
+    {
+        return $this->belongsToMany('App\CbPermission','cb_permission_users','user_id','cb_permission_code');
+    }
 }

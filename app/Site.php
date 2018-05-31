@@ -144,4 +144,12 @@ class Site extends Model
     public function configurationsValues() {
         return $this->hasMany("App\SiteConfValue");
     }
+
+          /**
+       * Each Site has many Translation
+       * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function translationCode() {
+        return $this->hasMany('App\TranslationCode');
+    }
 }

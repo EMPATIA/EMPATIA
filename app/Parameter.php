@@ -26,7 +26,12 @@ class Parameter extends Model
         'use_filter',
         'visible_in_list',
         'visible',
-        'private'
+        'private',
+        'highlight',
+        'side',
+        'topic_image',
+        'max_number_files',
+        'max_number_files_flag'
     ];
 
     /**
@@ -71,7 +76,7 @@ class Parameter extends Model
      * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
      */
     public function cbs() {
-        return $this->belongsTo('App\Cb');
+        return $this->belongsTo('App\Cb','cb_id','id');
     }
 
     /**

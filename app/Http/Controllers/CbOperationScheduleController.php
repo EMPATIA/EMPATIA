@@ -53,11 +53,11 @@ class CbOperationScheduleController extends Controller
 
                 //get Operation Type
                 $operationTypeCode = $request->json('operation_type_code');
-                $operationType = OperationType::whereCode($operationTypeCode)->firstOrFail();
+                $operationType = OperationType::whereCode($operationTypeCode)->first();
 
                 //get Operation Action
                 $operationActionCode = $request->json('operation_action_code');
-                $operationAction = OperationAction::whereCode($operationActionCode)->firstOrFail();
+                $operationAction = OperationAction::whereCode($operationActionCode)->first();
 
                 //generate key
                 do {
@@ -70,11 +70,13 @@ class CbOperationScheduleController extends Controller
                 //create Operation Schedule
                 $cbOperationSchedule = $cb->operationSchedules()->create([
                     'cb_operation_schedule_key' => $key,
-                    'operation_type_id' => $operationType->id,
-                    'operation_action_id' => $operationAction->id,
-                    'active' => $request->json('active') ?? 0,
-                    'start_date' => $request->json('start_date'), //may need to use Carbon string formatting
-                    'end_date' => $request->json('end_date') //may need to use Carbon string formatting
+                    'operation_type_id'         => $operationType->id ?? null,
+                    'operation_action_id'       => $operationAction->id ?? null,
+                    'type_code'                 => $request->json('operation_type_code') ?? null,
+                    'action_code'               => $request->json('operation_action_code') ?? null,
+                    'active'                    => $request->json('active') ?? 0,
+                    'start_date'                => $request->json('start_date'), //may need to use Carbon string formatting
+                    'end_date'                  => $request->json('end_date') //may need to use Carbon string formatting
                 ]);
 
                 return response()->json($cbOperationSchedule, 201);
@@ -298,5 +300,63 @@ class CbOperationScheduleController extends Controller
         }
         return response()->json(['error' => 'Unauthorized' ], 401);
 
+    }
+
+    /**
+     * @param Request $request
+     * @param $cbKey
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function operationSchedules(Request $request, $cbKey)
+    {
+        try{
+            $cb = CB::whereCbKey($cbKey)->with([
+                'operationSchedules' => function($query) {
+                    $query->where("active","=","1")
+                        ->where(function($q) {
+                            $q->whereDate("start_date","<",Carbon::now())
+                                ->WhereDate("end_date",">",Carbon::now());
+                        });
+                }
+            ])->firstOrFail();
+
+            /* Create Operation Schedules object */
+            $operationSchedules = array();
+            $operationTypes = OperationType::all();
+            $operationActions = OperationAction::all();
+
+            foreach ($operationTypes as $operationType) {
+                $operationSchedules[$operationType->code] = array();
+
+                foreach ($operationActions as $operationAction) {
+                    $cbOperationSchedule = $cb->operationSchedules->where("operation_type_id",$operationType->id)->where("operation_action_id",$operationAction->id);
+                    $operationSchedules[$operationType->code][$operationAction->code] = $cbOperationSchedule->isEmpty();
+                }
+            }
+
+            $dynamicOperations = $cb->operationSchedules()
+                ->where('operation_type_id', null)
+                ->where('operation_action_id', null)
+                ->where('active', 1)
+                ->get();
+
+            if ($dynamicOperations){
+                foreach ($dynamicOperations as $dynamicOperation){
+                    if ($dynamicOperation->start_date <= Carbon::now() && $dynamicOperation->end_date >= Carbon::now()){
+                        $operationSchedules[$dynamicOperation->type_code][$dynamicOperation->action_code] = true;
+                    } else {
+                        $operationSchedules[$dynamicOperation->type_code][$dynamicOperation->action_code] = false;
+                    }
+                }
+            }
+
+            return response()->json($operationSchedules, 200);
+
+        } catch(ModelNotFoundException $e){
+            return response()->json(['error' => 'CB not found'], 404);
+        } catch(Exception $e){
+            return response()->json(['error' => 'Failed to get CB Operation Schedule'], 500);
+        }
+        return response()->json(['error' => 'Unauthorized' ], 401);
     }
 }

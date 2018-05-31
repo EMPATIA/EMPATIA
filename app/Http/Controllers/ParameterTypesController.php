@@ -125,13 +125,10 @@ class ParameterTypesController extends Controller
     {
 
         try {
-
             $type = ParameterType::with('paramAddFields')->findOrFail($typeId);
-
             foreach($type->paramAddFields as $fields){
                 $fields->translations();
             }
-
             return response()->json($type, 200);
         } catch (ModelNotFoundException $e) {
             return response()->json(['error' => 'ParameterType not found'], 404);

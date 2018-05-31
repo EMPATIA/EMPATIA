@@ -339,7 +339,7 @@ class LevelParametersController extends Controller
                 $site = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))
                     ->firstOrFail()
                     ->sites()
-                    ->where('key', $request->header('X-SITE-KEY'))
+                    ->where('key', $request->get("siteKey"))
                     ->firstOrFail();
 
                 $position = $site->levelParameters()->count()+1;

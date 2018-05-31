@@ -449,19 +449,19 @@ class BEMenuSeeder extends Seeder
             ), array(
                 "id"            => 16,
                 "code"          => null,
-                "controller"    => "UsersController",
-                "method"        => "createMessageToAll",
+                "controller"    => "PrivateNewslettersController",
+                "method"        => "index",
                 "module_code"   => "notify",
                 "module_type_code"=> "message_all_users",
                 "permission"    => "message_all_users",
                 "translations" => array(
                     array(
                         "language_code" => "en",
-                        "name"          => "Send to All Users",
+                        "name"          => "Newsletters",
                         "description"   => "",
                     ),array(
                         "language_code" => "pt",
-                        "name"          => "Enviar para todos os Utilizadores",
+                        "name"          => "Newsletters",
                         "description"   => "",
                     )
                 ),

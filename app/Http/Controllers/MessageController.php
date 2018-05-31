@@ -9,6 +9,7 @@ use App\One\One;
 use App\OrchUser;
 use App\Topic;
 use App\User;
+use App\ParameterUserType;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -56,6 +57,17 @@ class MessageController extends Controller
             return response()->json(['error' => 'Failed to retrieve Messages'], 500);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    public function showMessage(Request $request){
+        try{
+        $message = Message::whereMessageKey($request->messageKey)->first();
+
+        return response()->json($message, 200);
+
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to retrieve Message'], 500);
+        }
     }
 
     /**
@@ -133,48 +145,96 @@ class MessageController extends Controller
      */
     public function store(Request $request)
     {
-        $userKey = ONE::verifyToken($request);
-
         try {
-            $user = OrchUser::whereUserKey($userKey)->firstOrFail();
-            $from = $user->user_key;
-            $topic = null;
+            if($request['register_message']){
+                $user = $request['email'];
+                $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->firstOrFail();
+                $to = $request->header('X-ENTITY-KEY');
+                
+                $parameter = ParameterUserType::whereParameterUserTypeKey($request['parameter_user_key'])->firstOrFail();
+                $parameter->newTranslation();
 
-            if($request->json('to')){
-                $user = OrchUser::whereUserKey($request->json('to'))->firstOrFail();
-            }
-            $to = $request->json('to') ?? $request->header('X-ENTITY-KEY');
-            $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->firstOrFail();
 
-            if($request->json('topic_key')){
-                $topic = Topic::whereTopicKey($request->json('topic_key'))->first();
-            }
+                $textMessage = "Name: $request->name <br>
+                                Email: $request->email <br>
+                                Mobile Phone: $request->mobile_phone <br>
+                                $parameter->name: $request->parameter_value <br>
+                                Text: $request->message";
 
-            $key = "";
-            do {
-                $rand = str_random(32);
-                if (!($exists = Message::whereMessageKey($rand)->exists())) {
-                    $key = $rand;
+                $key = "";
+                    do {
+                        $rand = str_random(32);
+                        if (!($exists = Message::whereMessageKey($rand)->exists())) {
+                            $key = $rand;
+                        }
+                    } while ($exists);
+
+                $message = $entity->messages()->create([
+                    'message_key' => $key,
+                    'entity_id' => $entity->id,
+                    'topic_id' => null,
+                    'value' => $textMessage,
+                    'to' => $to,
+                    'from' => $user,
+                    'viewed' => 0,
+                    'viewed_at' => null,
+                    'viewed_by' => null
+                ]);
+                
+                $tags = [
+                    "message"   => $textMessage
+                ];
+                
+                ONE::sendNotificationEmail($request, 'new_messages', $tags);
+
+                return response()->json($message, 201);
+
+            }else{
+                $userKey = ONE::verifyToken($request);
+
+                $contents = $request->json('message') ?? null;
+                if ($contents && (strlen($contents) > 0 && strlen(trim($contents)) > 0)) {
+
+                    $user = OrchUser::whereUserKey($userKey)->firstOrFail();
+                    $from = $user->user_key;
+                    $topic = null;
+
+                    if ($request->json('to')) {
+                        $user = OrchUser::whereUserKey($request->json('to'))->firstOrFail();
+                    }
+                    $to = $request->json('to') ?? $request->header('X-ENTITY-KEY');
+                    $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->firstOrFail();
+
+                    if ($request->json('topic_key')) {
+                        $topic = Topic::whereTopicKey($request->json('topic_key'))->first();
+                    }
+
+                    $key = "";
+                    do {
+                        $rand = str_random(32);
+                        if (!($exists = Message::whereMessageKey($rand)->exists())) {
+                            $key = $rand;
+                        }
+                    } while ($exists);
+
+                    $message = $user->messages()->create([
+                        'message_key' => $key,
+                        'entity_id' => $entity->id,
+                        'topic_id' => is_null($topic) ? null : $topic->id,
+                        'value' => $request->json('message'),
+                        'to' => $to,
+                        'from' => $from,
+                        'viewed' => 0,
+                        'viewed_at' => null,
+                        'viewed_by' => null
+                    ]);
+
+    //            Sends Notification Emails to the selected groups of users
+                    ONE::sendNotificationEmail($request, 'new_messages');
+
+                    return response()->json($message, 201);
                 }
-            } while ($exists);
-
-            $message = $user->messages()->create([
-                'message_key'   => $key,
-                'entity_id'     => $entity->id,
-                'topic_id'      => is_null($topic) ? null : $topic->id,
-                'value'         => $request->json('message'),
-                'to'            => $to,
-                'from'          => $from,
-                'viewed'        => 0,
-                'viewed_at'     => null,
-                'viewed_by'     => null
-            ]);
-
-//            Sends Notification Emails to the selected groups of users
-            ONE::sendNotificationEmail($request,'new_messages');
-
-            return response()->json($message, 201);
-
+            }
         } catch (ModelNotFoundException $e) {
             return response()->json(['error' => 'User or Entity not Found'], 404);
         } catch (Exception $e) {

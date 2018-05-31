@@ -66,8 +66,13 @@ class DbInitController extends Controller
 
                         unset($topicParameter->parameterTranslations);
 
-                        $parametersCache[$parameter->parameter_id] = $topicParameter;
-                        $parametersCache[$parameter->parameter_id]['translations'] = $parameterTranslations;
+                        if(!empty($topicParameter)) {
+                            $parametersCache[$parameter->parameter_id] = $topicParameter;
+                        }
+
+                        if(!empty($parameterTranslations)){
+                            $parametersCache[$parameter->parameter_id]['translations'] = $parameterTranslations;
+                        }
 
                         if (isset($parametersCache[$parameter->parameter_id]->options)){
                             foreach ($parametersCache[$parameter->parameter_id]->options as $parameterOption) {
@@ -124,8 +129,14 @@ class DbInitController extends Controller
 
                         unset($parameter->parameterTranslations);
 
-                        $parametersCache[$parameter->id] = $parameter;
-                        $parametersCache[$parameter->id]['translations'] = $parameterTranslations;
+                        if(!empty($parameter)) {
+                            $parametersCache[$parameter->id] = $parameter;
+                        }
+
+                        if(!empty($parameterTranslations)) {
+                            $parametersCache[$parameter->id]['translations'] = $parameterTranslations;
+                        }
+
 
                         if (isset($parametersCache[$parameter->id]->options)){
                             foreach ($parametersCache[$parameter->id]->options as $parameterOption) {

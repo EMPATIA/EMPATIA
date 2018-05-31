@@ -16,12 +16,40 @@ class DashBoardElementConfigurationsController extends Controller
     public function index(Request $request)
     {
         try {
+            $query = DashBoardElementConfiguration::query();
+            $tableData = $request->input('tableData') ?? null;
 
-            $dashBoardElementConfigurations = DashBoardElementConfiguration::get();
-            $dashBoardElementConfigurations->newTranslation($request->header('LANG-CODE'),$request->header('LANG-CODE-DEFAULT'));
+            if (!empty($tableData)) {
+                $recordsTotal = $query->count();
 
-            return response()->json(['data' => $dashBoardElementConfigurations], 200);
+                if(!empty($tableData['search']['value'])) {
+                    $query = $query
+                        ->where('code', 'like', '%'.$tableData['search']['value'].'%');
+                }
 
+                $recordsFiltered = $query->count();
+
+                $dashBoardElementConfigurations = $query
+                    ->skip($tableData['start'])
+                    ->take($tableData['length'])
+                    ->get();
+
+                foreach ($dashBoardElementConfigurations as $dashBoardElementConfiguration) {
+                    $dashBoardElementConfiguration->newTranslation($request->header('LANG-CODE'),$request->header('LANG-CODE-DEFAULT'));
+                }
+
+                $data['dashBoardElementConfigurations'] = $dashBoardElementConfigurations;
+                $data['recordsTotal'] = $recordsTotal;
+                $data['recordsFiltered'] = $recordsFiltered;
+            } else {
+                $data = $dashBoardElementConfigurations->get();
+
+                foreach ($data as $dashBoardElementConfiguration) {
+                    $dashBoardElementConfiguration->newTranslation($request->header('LANG-CODE'),$request->header('LANG-CODE-DEFAULT'));
+                }
+            }
+
+            return response()->json(["data" => $data], 200);
         } catch (Exception $e) {
             return response()->json(['error' => $e], 500);
         }
@@ -138,7 +166,15 @@ class DashBoardElementConfigurationsController extends Controller
      * @return \Illuminate\Http\Response
      */
     public function destroy($id)
-    {
-        //
+    {   
+        try {
+            DashBoardElementConfiguration::destroy($id);
+            return response()->json('Ok', 200);
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['error' => 'DashBoard Element Configuration not Found'], 404);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to delete DashBoard Element Configuration'], 500);
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
     }
 }

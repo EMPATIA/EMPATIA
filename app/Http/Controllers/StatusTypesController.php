@@ -116,7 +116,7 @@ class StatusTypesController extends Controller
 
             return response()->json(['data' => $statusTypes], 200);
         } catch (Exception $e) {
-            return response()->json(['error' => 'Failed to retrieve the list of Status Types']);
+            return response()->json(['error' => 'Failed to retrieve the list of Status Types'],500);
         }
     }
 
@@ -550,7 +550,7 @@ class StatusTypesController extends Controller
      * @param $language
      * @return bool|\Illuminate\Database\Eloquent\Collection|\Illuminate\Http\JsonResponse|static[]
      */
-    public function getStatusTypes($language)
+    public function getStatusTypes(Request $request,$language)
     {
         try {
             $statusTypes = StatusType::all();

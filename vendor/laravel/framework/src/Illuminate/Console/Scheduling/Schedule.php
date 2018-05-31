@@ -4,14 +4,15 @@ namespace Illuminate\Console\Scheduling;
 
 use Illuminate\Console\Application;
 use Illuminate\Container\Container;
-use Symfony\Component\Process\ProcessUtils;
+use Illuminate\Support\ProcessUtils;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
 class Schedule
 {
     /**
      * All of the events on the schedule.
      *
-     * @var array
+     * @var \Illuminate\Console\Scheduling\Event[]
      */
     protected $events = [];
 
@@ -23,7 +24,7 @@ class Schedule
     protected $mutex;
 
     /**
-     * Create a new event instance.
+     * Create a new schedule instance.
      *
      * @return void
      */
@@ -41,7 +42,7 @@ class Schedule
      *
      * @param  string|callable  $callback
      * @param  array   $parameters
-     * @return \Illuminate\Console\Scheduling\Event
+     * @return \Illuminate\Console\Scheduling\CallbackEvent
      */
     public function call($callback, array $parameters = [])
     {
@@ -74,12 +75,19 @@ class Schedule
      * Add a new job callback event to the schedule.
      *
      * @param  object|string  $job
-     * @return \Illuminate\Console\Scheduling\Event
+     * @param  string|null  $queue
+     * @return \Illuminate\Console\Scheduling\CallbackEvent
      */
-    public function job($job)
+    public function job($job, $queue = null)
     {
-        return $this->call(function () use ($job) {
-            dispatch(is_string($job) ? resolve($job) : $job);
+        return $this->call(function () use ($job, $queue) {
+            $job = is_string($job) ? resolve($job) : $job;
+
+            if ($job instanceof ShouldQueue) {
+                dispatch($job)->onQueue($queue);
+            } else {
+                dispatch_now($job);
+            }
         })->name(is_string($job) ? $job : get_class($job));
     }
 
@@ -126,7 +134,7 @@ class Schedule
      * Get all of the events on the schedule that are due.
      *
      * @param  \Illuminate\Contracts\Foundation\Application  $app
-     * @return array
+     * @return \Illuminate\Support\Collection
      */
     public function dueEvents($app)
     {
@@ -136,7 +144,7 @@ class Schedule
     /**
      * Get all of the events on the schedule.
      *
-     * @return array
+     * @return \Illuminate\Console\Scheduling\Event[]
      */
     public function events()
     {

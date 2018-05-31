@@ -274,8 +274,7 @@ class ParameterTemplatesController extends Controller
                     'visible_in_list' => $request->json('visible_in_list'),
                     'value' => $request->json('value'),
                     'currency' => $request->json('currency'),
-                    'position' => 0,
-                    'use_filter' => $request->json('use_filter')
+                    'position' => 0
                 ]
             );
 
@@ -385,7 +384,6 @@ class ParameterTemplatesController extends Controller
             $parameterTemplate->value = $request->json('value');
             $parameterTemplate->currency = $request->json('currency');
             $parameterTemplate->position = $request->json('position');
-            $parameterTemplate->use_filter = $request->json('use_filter');
 
             $parameterTemplate->save();
 

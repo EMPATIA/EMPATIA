@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Cb;
+use App\Cooperation;
 use App\User;
 use App\Post;
 use Exception;
@@ -12,27 +13,28 @@ use App\Status;
 use App\CbType;
 use App\One\One;
 use App\PostLike;
+use App\ComModules\Auth;
+use App\ComModules\Notify;
+use App\ComModules\Vote;
+use App\Configuration;
+use App\Cooperator;
+use App\CooperatorType;
 use App\EntityCb;
 use App\OrchUser;
 use App\One\OneCb;
 use Carbon\Carbon;
 use App\PostAbuse;
 use App\Parameter;
-use App\Cooperator;
 use App\StatusType;
 use App\CbTemplate;
 use App\Http\Requests;
 use App\OperationType;
-use App\Configuration;
 use App\ParameterType;
+use App\PostCommentType;
+use App\Site;
 use App\TopicAlliance;
 use App\TopicFollower;
-use App\CooperatorType;
 use App\OperationAction;
-use App\ComModules\Vote;
-use App\PostCommentType;
-use App\ComModules\Auth;
-use App\ComModules\Notify;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -495,13 +497,27 @@ class TopicsController extends Controller
             $operationSchedules = array();
             $operationTypes = OperationType::all();
             $operationActions = OperationAction::all();
-            $cbOperationSchedules = $cb->operationSchedules()->get();
+
             foreach ($operationTypes as $operationType) {
                 $operationSchedules[$operationType->code] = array();
 
                 foreach ($operationActions as $operationAction) {
-                    $cbOperationSchedule = $cbOperationSchedules->where("operation_type_id",$operationType->id)->where("operation_action_id",$operationAction->id);
+                    $cbOperationSchedule = $cb->operationSchedules->where("operation_type_id",$operationType->id)->where("operation_action_id",$operationAction->id);
                     $operationSchedules[$operationType->code][$operationAction->code] = $cbOperationSchedule->isEmpty();
+                }
+            }
+
+            $dynamicOperations = $cb->operationSchedules()
+                ->where('active', 1)
+                ->get();
+
+            if ($dynamicOperations){
+                foreach ($dynamicOperations as $dynamicOperation){
+                    if ($dynamicOperation->start_date <= Carbon::now() && $dynamicOperation->end_date >= Carbon::now()){
+                        $operationSchedules[$dynamicOperation->type_code][$dynamicOperation->action_code] = true;
+                    } else {
+                        $operationSchedules[$dynamicOperation->type_code][$dynamicOperation->action_code] = false;
+                    }
                 }
             }
 
@@ -512,7 +528,7 @@ class TopicsController extends Controller
                 'dislike_counter' => $dislikes,
                 'posts_counter' => $posts,
                 'cb_votes' => $votes,
-                'topicsKeys' => [],
+                'topicsKeys' => $cb->topics()->orderBy("topic_number")->select("topic_key")->get()->pluck("topic_key"),
                 'firstPostFiles' => $topicFirstPostFiles,
                 'operationSchedules' => $operationSchedules
             ], 200);
@@ -526,6 +542,11 @@ class TopicsController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
+    /**
+     * @param Request $request
+     * @param $cb
+     * @return \Illuminate\Http\JsonResponse|mixed
+     */
     public function dealWithCbParameters(Request $request, $cb)
     {
 
@@ -580,8 +601,6 @@ class TopicsController extends Controller
         } catch (Exception $e) {
             return response()->json(['error' => 'Failed to retrieve the Topic'], 500);
         }
-
-
     }
 
     /**
@@ -695,16 +714,26 @@ class TopicsController extends Controller
      */
     public function store(Request $request)
     {
-        try{
-            if (!CbOperationScheduleController::verifyScheduleInternal($request->header('X-ENTITY-KEY'), $request->json('cb_key'), 'topic', 'create')){
-                return response()->json(['error' => 'Outside Permitted Creation Data'], 500);
+
+        //VALIDATE THE USER LOGIN LEVELS FOR THIS ACTION IF PUBLIC CALL
+        if(!$isPrivateRequest = $request->json("private",false)) {
+            if (!CbsController::checkIfUserIsAllowedToPerformThisActionByLoginLevels(clean($request->json('cb_key')), 'create_topic', $request)) {
+                return response()->json(['error' => 'Unauthorized'], 401);
             }
-        } catch (Exception $e){
-            //
         }
 
         $userKey = ONE::verifyLogin($request);
         ONE::verifyKeysRequest($this->required["store"], $request);
+
+        if(!$request->json("private")) {
+            try {
+                if (!CbOperationScheduleController::verifyScheduleInternal($request->header('X-ENTITY-KEY'), $request->json('cb_key'), 'topic', 'create')) {
+                    return response()->json(['error' => 'Outside Permitted Creation Data'], 500);
+                }
+            } catch (Exception $e) {
+                return response()->json(['error' => 'Outside Permitted Creation Data Exception'], 500);
+            }
+        }
 
         do {
             $key = '';
@@ -776,8 +805,8 @@ class TopicsController extends Controller
                         'created_on_behalf' => $request->json('created_on_behalf') ?? null,
                         'title' => clean($request->json('title')),
                         'blocked' => is_null($request->json('blocked')) ? 0 : clean($request->json('blocked')),
-                        'summary' => $summary,
-                        'contents' => $contents,
+                        'summary' => $summary ?? null,
+                        'contents' => $contents ?? null,
 
                         'status_id' => is_null($request->json('status_id')) ? 0 : clean($request->json('status_id')),
                         'q_key' => is_null($request->json('q_key')) ? 0 : clean($request->json('q_key')),
@@ -1003,6 +1032,16 @@ class TopicsController extends Controller
 
         $userKey = ONE::verifyToken($request);
         ONE::verifyKeysRequest($this->required["update"], $request);
+
+        if(!$request->json("private")) {
+            try {
+                if (!CbOperationScheduleController::verifyScheduleInternal($request->header('X-ENTITY-KEY'), $request->json('cb_key'), 'topic', 'update')) {
+                    return response()->json(['error' => 'Outside Permitted Creation Data'], 500);
+                }
+            } catch (Exception $e) {
+                return response()->json(['error' => 'Outside Permitted Creation Data Exception'], 500);
+            }
+        }
 
         try {
             $isPrivateRequest = $request->json("private",false);
@@ -1412,23 +1451,87 @@ class TopicsController extends Controller
      */
     public function addCooperator(Request $request, $topicKey)
     {
+        $userKey = ONE::verifyToken($request);
+
         try {
             $createdBy = ONE::verifyToken($request);
-            $topicId = Topic::whereTopicKey($topicKey)->firstOrFail()->id;
+            $topic = Topic::whereTopicKey($topicKey)->firstOrFail();
 
-            $cooperatorTypeId = CooperatorType::first()->id;
-            foreach ($request->input('cooperators') as $cooperator){
-                if (!Cooperator::whereTopicId($topicId)->whereUserKey($cooperator)->exists()) {
-                    Cooperator::create(
-                        [
-                            'topic_id' => $topicId,
-                            'user_key' => $cooperator,
-                            'type_id' => $cooperatorTypeId,
-                            'created_by' => $createdBy
-                        ]
-                    );
+            $cb = $topic->cb()->with('configurations')->first();
+
+            $notify = false;
+            foreach ($cb['configurations'] as $configuration){
+                if ($configuration->code == 'notification_owner_added_cooperator'){
+
+                    $notify = true;
+
+                    $siteKey = $request->header('X-SITE-KEY');
+                    $site = Site::where('key',$siteKey)->first();
+
+                    $cbTemplate = CbTemplate::whereCbKey($cb->cb_key)->whereConfigurationCode('notification_owner_added_cooperator')->first();
                 }
             }
+
+            $cooperatorTypeId = CooperatorType::first()->id;
+            $users = [];
+            foreach ($request->input('cooperators') as $cooperator){
+                if (!Cooperator::whereTopicId($topic->id)->whereUserKey($cooperator)->exists()) {
+
+                    $key = null;
+                    do {
+                        $rand = str_random(32);
+
+                        if (!($exists = Cooperator::whereToken($rand)->exists())) {
+                            $key = $rand;
+                        }
+                    } while ($exists);
+
+                    $cooperator = Cooperator::create(
+                        [
+                            'topic_id'      => $topic->id,
+                            'user_key'      => $cooperator,
+                            'type_id'       => $cooperatorTypeId,
+                            'created_by'    => $createdBy,
+//                            temporary bypass
+//                            'token'         => $key
+                            'token'         => null
+                        ]
+                    );
+
+                    //temporary bypass
+//                    $cooperation = Cooperation::whereCode('requested')->firstOrFail();
+                    $cooperation = Cooperation::whereCode('accepted')->firstOrFail();
+
+                    $cooperator->cooperations()->attach($cooperation);
+                }
+
+                if ($notify){
+                    $users[] = $cooperator->user_key;
+                }
+            }
+
+//            if ($notify && !empty($users)){
+//                $usersEmail = User::whereIn('user_key',$users)->pluck('email');
+//
+//                if (!empty($site) && !empty($cbTemplate) && !empty($usersEmail) && !empty($userKey)){
+//
+//                    $actionUrl = $request->json('action_url') ?? null;
+//
+//                    $tags = [];
+//                    if (!is_null($actionUrl)){
+//
+//                        $url = str_replace('#token#', $key, urldecode($actionUrl), $count);
+//
+//                        if ($count){
+//                            $tags['topic'] = $topic->title;
+//                            $tags['url'] = $url;
+//                        }
+//                    }
+//
+//                    $response = Notify::sendEmailByTemplate($request, $site, $cbTemplate->template_key, $usersEmail, $userKey, $tags);
+//                }
+//            }
+
             return response()->json('Ok', 201);
         }catch (ModelNotFoundException $e) {
             return response()->json(['error' => 'Topic not Found'], 404);
@@ -1443,7 +1546,7 @@ class TopicsController extends Controller
      * Remove the specified Topic Cooperator from storage.
      *
      * @param Request $request
-     * @param $id
+     * @param $topicKey
      * @return \Illuminate\Http\JsonResponse
      */
     public function removeCooperator(Request $request, $topicKey)
@@ -1464,6 +1567,25 @@ class TopicsController extends Controller
             return response()->json(['error' => 'Failed to delete a Cooperator'], 500);
         }
 
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    /**
+     * @param Request $request
+     * @param $coopToken
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function verifyCoopToken(Request $request, $coopToken)
+    {
+        try {
+            $cooperator = Cooperator::with('cooperations')->whereToken($coopToken)->first();
+
+            return response()->json($cooperator, 200);
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['error' => 'Cooperator not Found'], 404);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to verify the Cooperator Token'], 500);
+        }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
@@ -2017,17 +2139,25 @@ class TopicsController extends Controller
                 //get previous and next CB Topic Key
 
                 $topic = Topic::whereTopicKey($topicKey)->firstOrFail();
-                $parentTopic = $topic->parentTopic()->first();
-                if (!is_null($parentTopic))
-                    $parentTopic->cb = $parentTopic->cb()->first();
+                if(!empty($topic->parent_id_topics)){
+                    $topicIds = explode(';', $topic->parent_id_topics);
+                    foreach($topicIds as $t){
+                        $parentTopic[] = Topic::with('cb')->find($t);
+                    }
+                }else{
 
+
+                    $parentTopic = $topic->parentTopic()->first();
+                    if (!is_null($parentTopic))
+                        $parentTopic->cb = $parentTopic->cb()->first();
+
+                }
                 $childTopics = $topic->childTopics()->get();
                 if ($childTopics->count()>0) {
                     foreach ($childTopics as $childTopic) {
                         $childTopic->cb = $childTopic->cb()->first();
                     }
                 }
-
                 $topics = $topics = Topic::whereCbId($topic->cb_id)->get();
                 $topics = $topics->sortByDesc('created_at')->pluck('topic_key');
 
@@ -2043,7 +2173,6 @@ class TopicsController extends Controller
                         }
                     }
                 }
-
 
                 $response = [
                     'topic' => $topic,
@@ -2132,7 +2261,7 @@ class TopicsController extends Controller
             }
 
             $configurations = Topic::findOrFail($topicId)->cb->configurations()->select('code')->pluck('code');
-            return response()->json(['posts' => $data, 'configurations' => $configurations], 200);
+            return response()->json(['posts' => $data, 'configurations' => $configurations, "firstPostKey" => $firstPost->post_key], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json(['error' => 'Topic not Found'], 404);
         } catch (Exception $e) {
@@ -2287,9 +2416,9 @@ class TopicsController extends Controller
     public function parameters(Request $request, $topicKey, $internalCall = false)
     {
         try {
-            $isPublicCall = $request->get("publicCall",false);
+            $isPublicCall = $request->get("publicCall", false);
             if ($isPublicCall)
-                $isPublicCall=true;
+                $isPublicCall = true;
 
             $userKey = ONE::verifyLogin($request);
             $user = OrchUser::whereUserKey($userKey)->first();
@@ -2301,13 +2430,12 @@ class TopicsController extends Controller
             $version = $request->input('topicVersion');
 
 
-
-            $topic = Topic::with(['status' => function ($q){
-                $q->where('active','=',1);
-            }, 'status.statusType','followers','parentTopic.cb'])->findOrFail($topicId)->timezone($request);
+            $topic = Topic::with(['status' => function ($q) {
+                $q->where('active', '=', 1);
+            }, 'status.statusType', 'followers', 'parentTopic.cb'])->findOrFail($topicId)->timezone($request);
 
             $cb = Cb::find($topic->cb_id);
-            if(!$isPublicCall) {
+            if (!$isPublicCall) {
                 $padPermissions = $cb->padPermissions()->whereIn('group_key', collect($groups)->pluck('entity_group_key')->toArray())->orWhere('user_key', '=', $userKey)->get();
 
                 $permissionOptions = [];
@@ -2322,28 +2450,27 @@ class TopicsController extends Controller
                 }
             }
 
-            $versions = $topic->topicVersions()->get()->unique("version")->map(function($item, $key) {
+            $versions = $topic->topicVersions()->get()->unique("version")->map(function ($item, $key) {
                 return [
-                    "version"       => $item->version,
-                    "active"        => $item->active,
-                    "created_at"    => $item->created_at
+                    "version" => $item->version,
+                    "active" => $item->active,
+                    "created_at" => $item->created_at
                 ];
             });
 
-            if(!$versions->isEmpty()){
+            if (!$versions->isEmpty()) {
                 $topic["versions"] = $versions;
                 $lastVersion = '';
                 if (is_null($version)) {
-                    if ($topic->topicVersions()->whereActive(1)->count()==1) {
+                    if ($topic->topicVersions()->whereActive(1)->count() == 1) {
                         $lastVersion = $topic->topicVersions()->whereActive(1)->firstOrFail();
-                    }
-                    else {
+                    } else {
                         $lastVersion = $topic->topicVersions()->orderBy("version", "desc")->firstOrFail();
                     }
-                } else{
+                } else {
                     $lastVersion = $topic->topicVersions()->whereVersion($version)->firstOrFail();
                 }
-                if(!empty($lastVersion)){
+                if (!empty($lastVersion)) {
                     $topic->title = $lastVersion->title;
                     $topic->summary = $lastVersion->summary;
                     $topic->contents = $lastVersion->contents;
@@ -2364,17 +2491,17 @@ class TopicsController extends Controller
 
                     $topic->parameters = $param;
                 }
-            }else{
-                $topic = Topic::with(['parameters.type', 'parameters.options', 'status' => function ($q){
-                    $q->where('active','=',1);
-                }, 'status.statusType','followers'])->findOrFail($topicId)->timezone($request);
+            } else {
+                $topic = Topic::with(['parameters.type', 'parameters.options', 'status' => function ($q) {
+                    $q->where('active', '=', 1);
+                }, 'status.statusType', 'followers'])->findOrFail($topicId)->timezone($request);
                 $topic["versions"] = null;
             }
 
 
-            if(!$isPublicCall && !empty($permissionOptions) && ONE::verifyRoleAdmin($request, $userKey) != 'admin'){
-                foreach ($permissionOptions as $key => $option){
-                    if(collect($topic->parameters)->where('id','=',$key)->where('pivot.value','=',$option)->isEmpty()){
+            if (!$isPublicCall && !empty($permissionOptions) && ONE::verifyRoleAdmin($request, $userKey) != 'admin') {
+                foreach ($permissionOptions as $key => $option) {
+                    if (collect($topic->parameters)->where('id', '=', $key)->where('pivot.value', '=', $option)->isEmpty()) {
                         return response()->json(['error' => 'Unauthorized'], 401);
                     }
                 }
@@ -2382,32 +2509,31 @@ class TopicsController extends Controller
 
             $topic->active_status = $topic->status()->with('statusType')->whereActive(1)->first();
             /** Verify if topic is closed */
-            if(!empty($topic->active_status) && $topic->active_status->statusType->code != 'moderated'){
+            if (!empty($topic->active_status) && $topic->active_status->statusType->code != 'moderated') {
                 $topic->closed = true;
-            }else{
+            } else {
                 $topic->closed = false;
             }
 
-            if(!empty($topic->parameters)){
-                foreach ($topic->parameters as $parameter){
-                    foreach ($parameter->options as $option){
+            if (!empty($topic->parameters)) {
+                foreach ($topic->parameters as $parameter) {
+                    foreach ($parameter->options as $option) {
                         $parameterOptionFields = $option->parameterOptionFields()->get();
-                        foreach ($parameterOptionFields as $parameterOptionField){
+                        foreach ($parameterOptionFields as $parameterOptionField) {
                             $option[$parameterOptionField->code] = $parameterOptionField->value;
                         }
                     }
                 }
             }
 
-            if(!empty($topic->active_status)){
+            if (!empty($topic->active_status)) {
 
                 if (!($topic->active_status->statusType->translation($request->header('LANG-CODE')))) {
-                    if (!$topic->active_status->statusType->translation($request->header('LANG-CODE-DEFAULT'))){
+                    if (!$topic->active_status->statusType->translation($request->header('LANG-CODE-DEFAULT'))) {
                         $translation = $topic->active_status->statusType->statusTypeTranslations()->first();
-                        if(!empty($translation)){
+                        if (!empty($translation)) {
                             $topic->active_status->statusType->translation($translation->language_code);
-                        }
-                        else{
+                        } else {
                             return response()->json(['error' => 'No translation found'], 404);
                         }
                     }
@@ -2415,33 +2541,31 @@ class TopicsController extends Controller
             }
 
             $following = false;
-            if(!empty($userKey)){
+            if (!empty($userKey)) {
                 $following = $topic->followers()->whereUserKey($userKey)->exists();
             }
             $topic->following = $following;
-            if(!empty($topic->parameters)){
+            if (!empty($topic->parameters)) {
                 foreach ($topic->parameters as $parameter) {
                     if (!($parameter->translation($request->header('LANG-CODE')))) {
-                        if (!$parameter->translation($request->header('LANG-CODE-DEFAULT'))){
+                        if (!$parameter->translation($request->header('LANG-CODE-DEFAULT'))) {
                             $translation = $parameter->parameterTranslations()->first();
-                            if(!empty($translation)){
+                            if (!empty($translation)) {
                                 $parameter->translation($translation->language_code);
-                            }
-                            else{
+                            } else {
                                 return response()->json(['error' => 'No translation found'], 404);
                             }
                         }
                     }
 
                     foreach ($parameter->options as $option) {
-                        if(!empty($option)){
+                        if (!empty($option)) {
                             if (!($option->translation($request->header('LANG-CODE')))) {
-                                if (!$option->translation($request->header('LANG-CODE-DEFAULT'))){
+                                if (!$option->translation($request->header('LANG-CODE-DEFAULT'))) {
                                     $translation = $option->parameterOptionTranslations()->first();
-                                    if(!empty($translation)){
+                                    if (!empty($translation)) {
                                         $option->translation($translation->language_code);
-                                    }
-                                    else{
+                                    } else {
                                         return response()->json(['error' => 'No translation found'], 404);
                                     }
                                 }
@@ -2452,14 +2576,13 @@ class TopicsController extends Controller
             }
 
             foreach ($topic->status as $status) {
-                if(!empty($status->statusType)){
+                if (!empty($status->statusType)) {
                     if (!($status->statusType->translation($request->header('LANG-CODE')))) {
-                        if (!$status->statusType->translation($request->header('LANG-CODE-DEFAULT'))){
+                        if (!$status->statusType->translation($request->header('LANG-CODE-DEFAULT'))) {
                             $translation = $status->statusType->statusTypeTranslations()->first();
-                            if(!empty($translation)){
+                            if (!empty($translation)) {
                                 $status->statusType->translation($translation->language_code);
-                            }
-                            else{
+                            } else {
                                 return response()->json(['error' => 'No translation found'], 404);
                             }
                         }
@@ -2468,9 +2591,9 @@ class TopicsController extends Controller
             }
 
             $topicAlliances = [];
-            if ($topic->originAllyRequest->count()>0) {
+            if ($topic->originAllyRequest->count() > 0) {
                 foreach ($topic->originAllyRequest as $alliance) {
-                    if ($userKey==$topic->created_by || $alliance->accepted==1) {
+                    if ($userKey == $topic->created_by || $alliance->accepted == 1) {
                         $topicAlliances[$alliance->ally_key] = $alliance->destinyTopic;
 
                         if ((is_null($alliance->accepted) && $userKey == $topic->created_by))
@@ -2482,17 +2605,17 @@ class TopicsController extends Controller
 
                         $topicAlliances[$alliance->ally_key]
                             ->setAttribute("ally_key", $alliance->ally_key)
-                            ->setAttribute("request_date",Carbon::parse($alliance->created_at)->toDateTimeString())
-                            ->setAttribute("request_description",$alliance->request_message)
-                            ->setAttribute("response_date",Carbon::parse($alliance->updated_at)->toDateTimeString())
-                            ->setAttribute("response_description",$alliance->response_message);
+                            ->setAttribute("request_date", Carbon::parse($alliance->created_at)->toDateTimeString())
+                            ->setAttribute("request_description", $alliance->request_message)
+                            ->setAttribute("response_date", Carbon::parse($alliance->updated_at)->toDateTimeString())
+                            ->setAttribute("response_description", $alliance->response_message);
                     }
                 }
             }
 
-            if ($topic->destinyAllyRequest->count()>0) {
+            if ($topic->destinyAllyRequest->count() > 0) {
                 foreach ($topic->destinyAllyRequest as $alliance) {
-                    if ($userKey==$topic->created_by || $alliance->accepted==1) {
+                    if ($userKey == $topic->created_by || $alliance->accepted == 1) {
                         $topicAlliances[$alliance->ally_key] = $alliance->originTopic;
 
                         if ((is_null($alliance->accepted) && $userKey == $topic->created_by))
@@ -2504,10 +2627,10 @@ class TopicsController extends Controller
 
                         $topicAlliances[$alliance->ally_key]
                             ->setAttribute("ally_key", $alliance->ally_key)
-                            ->setAttribute("request_date",Carbon::parse($alliance->created_at)->toDateTimeString())
-                            ->setAttribute("request_description",$alliance->request_message)
-                            ->setAttribute("response_date",Carbon::parse($alliance->updated_at)->toDateTimeString())
-                            ->setAttribute("response_description",$alliance->response_message);
+                            ->setAttribute("request_date", Carbon::parse($alliance->created_at)->toDateTimeString())
+                            ->setAttribute("request_description", $alliance->request_message)
+                            ->setAttribute("response_date", Carbon::parse($alliance->updated_at)->toDateTimeString())
+                            ->setAttribute("response_description", $alliance->response_message);
                     }
                 }
             }
@@ -2525,15 +2648,16 @@ class TopicsController extends Controller
 
             $topic['first_post'] = $post;
             $topic['alliances'] = $topicAlliances;
-            if($internalCall){
+            if ($internalCall) {
                 return $topic;
             }
             return response()->json($topic, 200);
-        } catch (ModelNotFoundException $e) {
+        }catch (ModelNotFoundException $e) {
             return response()->json(['error' => 'Topic not found'], 404);
-        } catch (Exception $e) {
+        }catch (Exception $e) {
             return response()->json(['error' => 'Failed to retrieve the Topic with its Parameters'], 500);
         }
+
     }
 
     /**
@@ -2855,7 +2979,15 @@ class TopicsController extends Controller
                         "cb.topics" => function($q) use ($userKey) {
                             $q->where("created_by","=",$userKey);
                         }
-                    ])->get();
+                    ]);
+                    
+                if(!empty($request->get("noConsultations"))) {
+                    $entityCbs = $entityCbs->whereHas("cbType",function($query) {
+                        $query->where("code","NOT LIKE","%consultation%");
+                    });
+                }
+                    
+                $entityCbs = $entityCbs->get();
 
                 foreach ($entityCbs as $entityCb) {
                     $cb = $entityCb->cb;
@@ -3964,8 +4096,6 @@ class TopicsController extends Controller
 
     /**
      *
-     * DEPRECATED - use 'getCooperatorsList' instead
-     *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
@@ -3991,7 +4121,7 @@ class TopicsController extends Controller
                 $user->name = $cooperatorsData->where('user_key', '=', $user->user_key)->first()->name;
             }
 
-            return response()->json("cooperators", 200);
+            return response()->json($cooperators, 200);
         } catch (ModelNotFoundException $e) {
             return response()->json(['error' => 'Topic not Found'], 404);
         } catch (Exception $e) {
@@ -4038,8 +4168,8 @@ class TopicsController extends Controller
 
             foreach ($cooperators as $user){
                 $user->name = $cooperatorsData->where('user_key', '=', $user->user_key)->first()->name;
+                $user->cooperation = $user->latestCooperation();
             }
-
 
             $recordsFiltered = $cooperators->count();
 
@@ -4199,7 +4329,7 @@ class TopicsController extends Controller
                         ->whereHas('type',function ($q){
                             $q->where('code', '=', 'associated_topics');
                         });
-                    }
+                }
                 ])->first(); //SHOULD BE JUST ONE
 
             if(!$associatedTopicsParameter->parameters->isEmpty()){
@@ -4250,7 +4380,7 @@ class TopicsController extends Controller
      * @param $lastVersion
      * @return \Illuminate\Http\JsonResponse
      */
-    public function updateTopicParametersCache($topicKey, $lastVersion)
+    public static function updateTopicParametersCache($topicKey, $lastVersion)
     {
         $topic = Topic::whereTopicKey($topicKey)->first();
 
@@ -4413,4 +4543,114 @@ class TopicsController extends Controller
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
+
+    /**
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function updateCoopStatus(Request $request){
+        try {
+            $coopToken = $request->json('coopToken');
+            $decision = $request->json('decision');
+
+            if (!empty($coopToken) && isset($decision)){
+
+                $cooperator = Cooperator::whereToken($coopToken)->first();
+
+                if ($cooperator){
+                    switch ($decision) {
+                        case true:
+                            $cooperation = Cooperation::whereCode('accepted')->first();
+                            $cooperator->cooperations()->attach($cooperation);
+                            $cooperator->token = null;
+                            $cooperator->save();
+                            break;
+                        case false:
+                            $cooperation = Cooperation::whereCode('rejected')->first();
+                            $cooperator->cooperations()->attach($cooperation);
+                            $cooperator->token = null;
+                            $cooperator->save();
+                            break;
+                        default:
+                            break;
+                    }
+                    return response()->json('Ok', 200);
+                }
+                return response()->json(['error' => 'Failed to update cooperator status'], 500);
+            }
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to update cooperator status'], 500);
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    public function userTopicsCount(Request $request) {
+        try {
+            $entity = ONE::getEntity($request);
+            $entity->load("entityCbs.cb.topics");
+
+            $userTopicsCount = array();
+            foreach ($entity->entityCbs as $entityCb) {
+                foreach ($entityCb->cb->topics as $topic) {
+                    $userTopicsCount[$topic->created_by][$topic->topic_key] = $topic->title;
+                }
+            }
+
+            foreach ($userTopicsCount as &$userTopics) {
+                $userTopics = count($userTopics);
+            }
+
+            return response()->json($userTopicsCount,200);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to get User Topics Count'], 500);
+        }
+    }
+
+
+    public function getTopic(Request $request, $topicKey)
+    {
+
+        try {
+            $topic = Topic::whereTopicKey($topicKey)
+            ->with(['cb.votes.voteConfigurations','cb.operationSchedules', 'cb.configurations', 'status.statusType.statusTypeTranslations'])
+            ->firstOrFail();
+
+            $parentTopic = [];
+            if(!empty($topic->parent_id_topics)){
+                $topicIds = explode(';', $topic->parent_id_topics);
+                foreach($topicIds as $t){
+                    $parentTopic[] = Topic::with('cb')->find($t);
+                }
+            }else{
+                $parentTopic = $topic->parentTopic()->first();
+                if (!is_null($parentTopic))
+                    $parentTopic->cb = $parentTopic->cb()->first();
+            }
+
+            $childTopics = null;
+            $childTopics = $topic->childTopics()->get();
+            if ($childTopics->count()>0) {
+                foreach ($childTopics as $childTopic) {
+                    $childTopic->cb = $childTopic->cb()->first();
+                }
+            }else{
+                $childTopics = null;
+            }
+
+            $created_by = $topic->created_by;
+            $user = User::whereUserKey($created_by)->first();
+
+            $topic->user = $user;
+            $topic->parent = $parentTopic;
+            $topic->childs = $childTopics;
+
+            return response()->json(['data' => $topic], 200);
+
+        } catch (Exception $e) {
+            return response()->json(['errors' => $e->getMessage()], 500);
+        } catch (\Throwable $t) {
+            return response()->json(['errors' => $t->getMessage()], 500);
+        }
+    }
+
 }

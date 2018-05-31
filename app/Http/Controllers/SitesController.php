@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
+
 /**
  * Class SitesController
  * @package App\Http\Controllers
@@ -115,6 +116,12 @@ class SitesController extends Controller
     public function index(Request $request)
     {
         try{
+            if(!empty($request->analytics)){
+                if($request->analytics == 1){
+                    $sites = Site::select('key', 'name')->pluck('key','name');
+                    return response()->json(['sites' => $sites], 200);
+                }
+            }
             if(!empty($request->header('X-ENTITY-KEY'))){
                 $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->first();
                 $sites = Site::whereEntityId($entity->id)->get();
@@ -386,8 +393,10 @@ class SitesController extends Controller
      */
     public function store(Request $request)
     {
-        ONE::verifyToken($request);
-        ONE::verifyKeysRequest($this->keysRequired, $request);
+        if(env("DEMO_MODE",false)!=true){
+            ONE::verifyToken($request);
+            ONE::verifyKeysRequest($this->keysRequired, $request);
+        }
 
         try{
             $key = null;
@@ -416,8 +425,8 @@ class SitesController extends Controller
                     'layout_id'     => $layout->id,
                     'cm_key'        => is_null($request->json('cm_key')) ? 0 : $request->json('cm_key'),
                     'name'          => $request->json('name'),
-                    'description'   => $request->json('description'),
-                    'link'          => $request->json('link'),
+                    'description'   => $request->json('description') ?? '',
+                    'link'          => $request->json('link') ?? '',
                     'partial_link'  => true,
                     'no_reply_email'  => $request->json('no_reply_email'),
                     'active'        => $request->json('active'),
@@ -998,19 +1007,36 @@ class SitesController extends Controller
     public function entitiesSites(Request $request)
     {
         try{
-            $authorizedModules = ['logs'];
-            One::verifyModulesAccess($request, $authorizedModules);
+           // $authorizedModules = ['logs'];
+         //   One::verifyModulesAccess($request, $authorizedModules);
 
-            $entities = Entity::with('sites')->get();
+            $entities = Entity::select('id','name')->get();
 
-            $response = [];
-            foreach ($entities as $entity){
-                foreach ($entity['sites'] as $site){
-                    $response[$entity->entity_key][] = $site->key;
+            $entitiesSites['sites'] = [];
+
+            if(isset($entities) && count($entities) >0){
+                foreach ($entities as $entity) {
+                    $entitiesSites['sites'] = array_add($entitiesSites['sites'], $entity->id, $entity->name);
+
+                    $array[$entity->name]=[];
+
+                    $sites = Site::join('entities','entities.id','=','sites.entity_id')
+                                    ->select('sites.key as site_key','sites.name as site_name')
+                                    ->get();
+
+                    if(isset($sites) && count($sites) >0) {
+                        foreach ($sites as $site) {
+                            $array[$entity->name] = array_add($array[$entity->name], $site['site_key'], $site['site_name'] );
+                        }
+                    }
+
                 }
             }
+            else{
+                $array[]=[];
+            }
 
-            return response()->json($response, 200);
+            return response()->json($array, 200);
 
         }catch (Exception $e) {
             return response()->json(['error' => 'Failed to retrieve Entities with Sites'], 500);

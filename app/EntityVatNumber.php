@@ -11,6 +11,7 @@ class EntityVatNumber extends Model
 
     protected $fillable = [
         'entity_id',
+        'parameter_user_type_id',
         'vat_number',
         'name',
         'surname',

@@ -333,4 +333,8 @@ class Entity extends Model
     public function entityNotifications(){
         return $this->hasMany('App\EntityNotification');
     }
+
+    public function openData() {
+        return $this->belongsTo('App\Modules\OpenData\Models\OpenDataEntity','entity_key','entity_key');
+    }
 }

@@ -258,15 +258,6 @@ class AccessMenusController extends Controller
             $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->firstOrFail();
 
             $site = Site::where('key',$request->json('site_key'))->firstOrFail();
-            if ($request->json('active') == 1) {
-                $oldAccessMenu = $site->accessMenus()->whereActive('1')->whereSiteId($site->id)->first();
-                
-                if(!empty($oldAccessMenu)){
-                    $oldAccessMenu->active = 0;
-                    $oldAccessMenu->save();
-                }
-            }
-            
             $accessMenu = $site->accessMenus()->create(
                 [
                     'entity_id'     => $entity->id,
@@ -274,6 +265,7 @@ class AccessMenusController extends Controller
                     'name'          => $request->json('name'),
                     'description'   => $request->json('description') ?? '',
                     'active'        => $request->json('active'),
+                    'code'          => $request->json('code') ?? '',
                     'created_by'    => $userKey
                 ]
             );
@@ -371,14 +363,6 @@ class AccessMenusController extends Controller
         try{
             $site = Site::where('key',$request->json('site_key'))->firstOrFail();
             $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->firstOrFail();
-            if ($request->json('active') == 1) {
-                $oldAccessMenu = $site->accessMenus()->whereActive('1')->whereSiteId($site->id)->first();
-
-                if(!empty($oldAccessMenu)){
-                    $oldAccessMenu->active = 0;
-                    $oldAccessMenu->save();
-                }
-            }
 
             $accessMenu = AccessMenu::findOrFail($id);
 
@@ -387,6 +371,7 @@ class AccessMenusController extends Controller
             $accessMenu->name           = $request->json('name');
             $accessMenu->description    = $request->json('description') ?? '';
             $accessMenu->active         = $request->json('active');
+            $accessMenu->code           = $request->json('code') ?? '';
             $accessMenu->updated_by     = $userKey;
             $accessMenu->save();
 
@@ -503,12 +488,6 @@ class AccessMenusController extends Controller
         try{
             $accessMenu = AccessMenu::findOrFail($id);
             $site = $accessMenu->site()->first();
-            $oldAccessMenu = $site->accessMenus()->whereActive('1')->whereSiteId($site->id)->first();
-
-            if(!empty($oldAccessMenu)){
-                $oldAccessMenu->active = 0;
-                $oldAccessMenu->save();
-            }
             
             $accessMenu->active = 1;
             $accessMenu->save();
@@ -534,7 +513,11 @@ class AccessMenusController extends Controller
     {
         try{
             $site = Site::where('key',$request->header('X-SITE-KEY'))->first();
-            $accessMenu = AccessMenu::whereActive(1)->whereSiteId($site->id)->first();
+            if(!empty($request->code)){
+                $accessMenu = AccessMenu::whereActive(1)->whereSiteId($site->id)->where("code" , "=", $request->code)->first();
+            }else{
+                $accessMenu = AccessMenu::whereActive(1)->whereSiteId($site->id)->first();
+            }
 
             return response()->json($accessMenu, 200);
         }catch(Exception $e){

@@ -81,4 +81,11 @@ class StatusType extends Model
         $this->setAttribute('translations',$translations);
         return $translations;
     }
+
+    public function newTranslation($language = null, $languageDefault = null)
+    {
+        $translation = $this->hasMany('App\StatusTypeTranslation')->orderByRaw("FIELD(language_code,'".$languageDefault."','".$language."')DESC")->first();
+        $this->setAttribute('name',$translation->name ?? null);
+        $this->setAttribute('description',$translation->description ?? null);
+    }
 }

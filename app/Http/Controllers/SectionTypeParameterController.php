@@ -20,18 +20,61 @@ class SectionTypeParameterController extends Controller
     public function index(Request $request)
     {
         try {
-            $sectionTypeParameters = SectionTypeParameter::all();
+            $query = SectionTypeParameter::query();
+            $tableData = $request->input('tableData') ?? null;
+            
+            if (!empty($tableData)) {
+                $recordsTotal = $query->count();
 
-            foreach ($sectionTypeParameters as $key=>$sectionTypeParameter) {
-                if (!($sectionTypeParameter->translation($request->header('LANG-CODE')))) {
-                    if (!$sectionTypeParameter->translation($request->header('LANG-CODE-DEFAULT'))){
-                        if (!$sectionTypeParameter->translation('en'))
-                            $sectionTypeParameters->forget($key);
+                if (!empty($tableData['order']))
+                    $query = $query
+                        ->orderBy($tableData['order']['value'], $tableData['order']['dir']);
+
+                if(!empty($tableData['search']['value'])) {
+                    $query = $query
+                        ->where('section_type_parameter_key', 'like', '%'.$tableData['search']['value'].'%')
+                        ->where('code', 'like', '%'.$tableData['search']['value'].'%')
+                        ->where('type_code', 'like', '%'.$tableData['search']['value'].'%');
+                }
+
+                $recordsFiltered = $query->count();
+
+                if (!empty($tableData['start']))
+                    $query->skip($tableData['start']);
+                    
+                if (!empty($tableData['length']))
+                    $query->take($tableData['length']);
+
+                $sectionTypeParameters = $query->get();
+
+                foreach ($sectionTypeParameters as $key=>$sectionTypeParameter) {
+                    if (!($sectionTypeParameter->translation($request->header('LANG-CODE')))) {
+                        if (!$sectionTypeParameter->translation($request->header('LANG-CODE-DEFAULT'))){
+                            if (!$sectionTypeParameter->translation('en'))
+                                $sectionTypeParameters->forget($key);
+                        }
                     }
                 }
+
+                $data['sectionTypeParameters'] = $sectionTypeParameters;
+                $data['recordsTotal'] = $recordsTotal;
+                $data['recordsFiltered'] = $recordsFiltered;
+            } else {
+                $sectionTypeParameters = $query->get();
+
+                foreach ($sectionTypeParameters as $key=>$sectionTypeParameter) {
+                    if (!($sectionTypeParameter->translation($request->header('LANG-CODE')))) {
+                        if (!$sectionTypeParameter->translation($request->header('LANG-CODE-DEFAULT'))){
+                            if (!$sectionTypeParameter->translation('en'))
+                                $sectionTypeParameters->forget($key);
+                        }
+                    }
+                }
+                
+                $data = $sectionTypeParameters;
             }
 
-            return response()->json($sectionTypeParameters, 200);
+            return response()->json($data, 200);
         } catch (Exception $e) {
             return response()->json(['error' => 'Failed to retrieve the Section Type Parameters list'], 500);
         }

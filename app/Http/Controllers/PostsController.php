@@ -128,9 +128,9 @@ class PostsController extends Controller
                 })->get()->pluck("firstPost.post_key");
 
             $posts = Post::with([
-                    "topic.cb.configurations",
-                    "abuses"
-                ])
+                "topic.cb.configurations",
+                "abuses"
+            ])
                 ->whereHas("topic.cb",function($q) use ($cbKeys){
                     $q->whereIn("cb_key",$cbKeys);
                 })
@@ -405,40 +405,42 @@ class PostsController extends Controller
         ONE::verifyKeysRequest($this->required['store'], $request);
 
         try {
+            $contents = $request->json('contents') ?? null;
+            if ($contents && (strlen($contents) > 0 && strlen(trim($contents)) > 0)) {
 
-            $topic = Topic::whereTopicKey($request->json('topic_key'))->firstOrFail();
+                $topic = Topic::whereTopicKey($request->json('topic_key'))->firstOrFail();
 
-            // Configurations
-            $configurations = $topic->cb->configurations()->select('code')->pluck('code');
+                // Configurations
+                $configurations = $topic->cb->configurations()->select('code')->pluck('code');
 
-            /* Verify if user can vote */
-            if (OneCb::checkCBsOption($configurations->toArray(),"ALLOW-COMMENTS") && (!empty($userKey) || OneCb::checkCBsOption($configurations->toArray(), 'COMMENTS-ANONYMOUS'))) {
-                $commentType = PostCommentType::whereCode($request->json('type_code'))->first();
+                /* Verify if user can vote */
+                if (OneCb::checkCBsOption($configurations->toArray(),"ALLOW-COMMENTS") && (!empty($userKey) || OneCb::checkCBsOption($configurations->toArray(), 'COMMENTS-ANONYMOUS'))) {
+                    $commentType = PostCommentType::whereCode($request->json('type_code'))->first();
 
-                $key = '';
-                do {
-                    $rand = str_random(32);
-                    if (!($exists = Post::wherePostKey($rand)->exists())) {
-                        $key = $rand;
-                    }
-                } while ($exists);
+                    $key = '';
+                    do {
+                        $rand = str_random(32);
+                        if (!($exists = Post::wherePostKey($rand)->exists())) {
+                            $key = $rand;
+                        }
+                    } while ($exists);
 
 
-                $active = 1;
-                if (OneCb::checkCBsOption($configurations->toArray(), 'COMMENT-NEEDS-AUTHORIZATION'))
-                    $active = 0;
+                    $active = 1;
+                    if (OneCb::checkCBsOption($configurations->toArray(), 'COMMENT-NEEDS-AUTHORIZATION'))
+                        $active = 0;
 
-                $post = $topic->posts()->create(
-                    [
-                        'post_key' => $key,
-                        'parent_id' => clean($request->json('parent_id')),
-                        'created_by' => is_null($userKey) ? 'anonymous' : $userKey,
-                        'active' => $active,
-                        'enabled' => 1,
-                        'contents' => clean($request->json('contents')),
-                        'post_comment_type_id' => $commentType ? $commentType->id : 0
-                    ]
-                );
+                    $post = $topic->posts()->create(
+                        [
+                            'post_key' => $key,
+                            'parent_id' => clean($request->json('parent_id')),
+                            'created_by' => is_null($userKey) ? 'anonymous' : $userKey,
+                            'active' => $active,
+                            'enabled' => 1,
+                            'contents' => clean($request->json('contents')),
+                            'post_comment_type_id' => $commentType ? $commentType->id : 0
+                        ]
+                    );
 
 //                Notify Followers - BEGIN
 //                if (OneCb::checkCBsOption($configurations->toArray(), 'NOTIFICATION-NEW-COMMENTS')){
@@ -451,7 +453,8 @@ class PostsController extends Controller
 //                }
 //                Notify Followers - END
 
-                return response()->json($post, 201);
+                    return response()->json($post, 201);
+                }
             }
         } catch (Exception $e) {
             return response()->json(['error' => 'Failed to store new Post'], 500);
@@ -932,6 +935,78 @@ class PostsController extends Controller
             return response()->json(['error' => 'Failed to add File to Post'], 500);
         }
     }
+
+
+    public function addFiles(Request $request, $postKey)
+    {
+//        with this security is impossible for an anonymous user to upload files when creating a public topic
+//        ONE::verifyToken($request);
+
+        // ONE::verifyKeysRequest($this->required['addFile'], $request);
+
+        try {
+
+            foreach($request->json('files') as $file){
+                $post = Post::wherePostKey($postKey)->firstOrFail();
+
+                $last = $post->files()->whereTypeId($request->json('type_id'))->orderBy('position', 'desc')->first();
+                $position = $last ? $last->position + 1 : 0;
+
+                $post->files()->create(
+                    [
+                        'file_id' => $file['file_id'],
+                        'file_code' => $file['file_code'],
+                        'name' =>  $file['name'],
+                        'description' => $file['description'],
+                        'position' => $position,
+                        'type_id' => $file['type_id']
+                    ]
+                );
+            }
+            return response()->json('OK', 201);
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['error' => 'Post not found'], 404);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to add File to Post'], 500);
+        }
+    }
+
+
+
+
+    public function updateFiles(Request $request, $postKey)
+    {
+//        with this security is impossible for an anonymous user to upload files when creating a public topic
+//        ONE::verifyToken($request);
+
+        // ONE::verifyKeysRequest($this->required['addFile'], $request);
+
+        try {
+            $post = Post::wherePostKey($postKey)->firstOrFail();
+            $post->files()->delete();
+
+            foreach($request->json('files') as $file){
+                $last = $post->files()->whereTypeId($request->json('type_id'))->orderBy('position', 'desc')->first();
+                $position = $last ? $last->position + 1 : 0;
+                $post->files()->create(
+                    [
+                        'file_id' => $file['file_id'],
+                        'file_code' => $file['file_code'],
+                        'name' =>  $file['name'],
+                        'description' => $file['description'],
+                        'position' => $position,
+                        'type_id' => $file['type_id']
+                    ]
+                );
+            }
+            return response()->json('OK', 201);
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['error' => 'Post not found'], 404);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to add File to Post'], 500);
+        }
+    }
+
 
     /**
      * @param Request $request

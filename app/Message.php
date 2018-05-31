@@ -64,4 +64,12 @@ class Message extends Model
 
         return $this;
     }
+
+    public function sender() {
+        return $this->belongsTo("App\User","from","user_key");
+    }
+
+    public function receiver() {
+        return $this->belongsTo("App\User","to","user_key");
+    }
 }

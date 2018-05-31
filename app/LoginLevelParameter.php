@@ -24,6 +24,6 @@ class LoginLevelParameter extends Model
 
 
   public function parameterUserType() {
-      return $this->belongsTo('App\ParamaterUserType');
+      return $this->belongsTo('App\ParameterUserType');
   }
 }

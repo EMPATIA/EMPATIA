@@ -69,10 +69,39 @@ class CurrenciesController extends Controller
      * @return \Illuminate\Database\Eloquent\Collection|\Illuminate\Database\Eloquent\Model
      */
     public function index(Request $request)
-    {
+    { 
         try{
-            $currencies = Currency::all();
-            return response()->json(['data' => $currencies], 200);
+            $currencies = Currency::query();
+            $tableData = $request->input('tableData') ?? null;
+
+            if (!empty($tableData)) {
+                $recordsTotal = $currencies->count();
+
+                $query = $currencies
+                    ->orderBy($tableData['order']['value'], $tableData['order']['dir']);
+
+                if(!empty($tableData['search']['value'])) {
+                    $query = $query
+                        ->where('code', 'like', '%'.$tableData['search']['value'].'%')
+                        ->orWhere('currency', 'like', '%'.$tableData['search']['value'].'%')
+                        ->orWhere('symbol_left', 'like', '%'.$tableData['search']['value'].'%')
+                        ->orWhere('symbol_right', 'like', '%'.$tableData['search']['value'].'%');
+                }
+
+                $recordsFiltered = $query->count();
+
+                $currencies = $query
+                    ->skip($tableData['start'])
+                    ->take($tableData['length'])
+                    ->get();
+
+                $data['currencies'] = $currencies;
+                $data['recordsTotal'] = $recordsTotal;
+                $data['recordsFiltered'] = $recordsFiltered;
+            } else
+                $data = $currencies->get();
+
+            return response()->json(["data" => $data], 200);
         }catch(Exception $e){
             return response()->json(['error' => 'Failed to retrieve the Currencies list'], 500);
         }

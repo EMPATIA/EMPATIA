@@ -14,7 +14,7 @@ class Timezone extends Model
      *
      * @var array
      */
-    protected $fillable = ['name', 'code'];
+    protected $fillable = ['name', 'country_code'];
 
     /**
      * The attributes that should be mutated to dates.

@@ -170,10 +170,12 @@ class EntitiesController extends Controller
      */
     public function show(Request $request, $key)
     {
-        $userKey = ONE::verifyToken($request);
+        if(env("DEMO_MODE",false)!=true)
+            $userKey = ONE::verifyToken($request);
+        
         try {
             $entity = Entity::with('languages', 'sites', 'country', 'timezone', 'currency', 'layouts')->whereEntityKey($key)->firstOrFail();
-            if (OrchUser::verifyRole($userKey, "admin") || OrchUser::verifyRole($userKey, "manager", $entity->id)) {
+            if (env("DEMO_MODE",false)==true || OrchUser::verifyRole($userKey, "admin") || OrchUser::verifyRole($userKey, "manager", $entity->id)) {
 
                 return response()->json($entity, 200);
             }
@@ -268,10 +270,12 @@ class EntitiesController extends Controller
      */
     public function store(Request $request)
     {
-        $userKey = ONE::verifyToken($request);
-
+        if(env("DEMO_MODE",false)!=true)
+            $userKey = ONE::verifyToken($request);
+        
         ONE::verifyKeysRequest($this->keysRequired, $request);
-        if (OrchUser::verifyRole($userKey, "admin")) {
+        
+        if (env("DEMO_MODE",false)==true || OrchUser::verifyRole($userKey, "admin")) {
             try {
                 $key='';
                 do {
@@ -291,7 +295,7 @@ class EntitiesController extends Controller
                         'name' => $request->json('name'),
                         'designation' => $request->json('designation') ?? '',
                         'description' => $request->json('description') ?? '',
-                        'created_by' => $userKey,
+                        'created_by' => (env("DEMO_MODE",false)!=true) ? $userKey : "",
                         'url' => $request->json('url')
                     ]
                 );
@@ -529,7 +533,9 @@ class EntitiesController extends Controller
      */
     public function addLanguage(Request $request)
     {
-        ONE::verifyToken($request);
+        if(env("DEMO_MODE",false)!=true)
+            ONE::verifyToken($request);
+
         try {
             if (!empty ($request->header('X-ENTITY-KEY'))) {
                 $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->firstOrFail();
@@ -631,7 +637,9 @@ class EntitiesController extends Controller
      */
     public function addLayout(Request $request)
     {
-        ONE::verifyToken($request);
+        if(env("DEMO_MODE",false)!=true)
+            ONE::verifyToken($request);
+
         try {
             $entity = Entity::whereEntityKey($request->json('entity_key'))->firstOrFail();
 
@@ -841,13 +849,19 @@ class EntitiesController extends Controller
             $query = $query->orderBy($tableData['order']['value'], $tableData['order']['dir']);
 
             if(!empty($tableData['search']['value'])) {
-                $query = $query
-                    ->where('vat_number', 'like', '%'.$tableData['search']['value'].'%')
-                    ->orWhere('name', 'like', '%'.$tableData['search']['value'].'%')
-                    ->orWhere('surname', 'like', '%'.$tableData['search']['value'].'%')
-                    ->orWhere('birthdate', 'like', '%'.$tableData['search']['value'].'%')
-                    ->orWhere('birthplace', 'like', '%'.$tableData['search']['value'].'%')
-                    ->orWhere('residential_address', 'like', '%'.$tableData['search']['value'].'%');
+                if($request['type'] == 'vat_numbers') {
+                    $query = $query
+                        ->where('vat_number', 'like', '%'.$tableData['search']['value'].'%')
+                        ->orWhere('name', 'like', '%'.$tableData['search']['value'].'%')
+                        ->orWhere('surname', 'like', '%'.$tableData['search']['value'].'%')
+                        ->orWhere('birthdate', 'like', '%'.$tableData['search']['value'].'%')
+                        ->orWhere('birthplace', 'like', '%'.$tableData['search']['value'].'%')
+                        ->orWhere('residential_address', 'like', '%'.$tableData['search']['value'].'%');
+                } else {
+                    $query = $query
+                        ->where('domain_title', 'like', '%'.$tableData['search']['value'].'%')
+                        ->orWhere('domain_name', 'like', '%'.$tableData['search']['value'].'%');
+                }
             }
 
             $recordsFiltered = $query->count();
@@ -870,6 +884,17 @@ class EntitiesController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
+    public function getVatNumbers(Request $request)
+    {
+        try{
+            $entity = Entity::whereEntityKey($request['entity_key'])->firstOrFail();
+            $numbers = $entity->vatNumbers()->where('parameter_user_type_id', $request['parameter_user_type_id'])->get();
+            return response()->json($numbers, 200);
+        }catch (Exception $e) {
+            return response()->json(['error' => 'Failed to get all vat numbers'], 500);
+        }
+    }
+
     /**
      * stores the entity registration
      * values according to the requested type
@@ -882,12 +907,14 @@ class EntitiesController extends Controller
         try {
             $entity = Entity::whereEntityKey($request->json('entity_key'))->firstOrFail();
             $typeOfRegistration = $request->json('type');
+            $parameterUserTypeId = $request->json('parameter_user_type_id');
             $added = 0;
             if($typeOfRegistration == 'vat_numbers'){
                 foreach ($request->json('values') as $key=>$value){
                     if(!$entity->vatNumbers()->whereVatNumber($value['vat_number'])->exists()) {
                         EntityVatNumber::create([
                             'entity_id'  => $entity->id,
+                            'parameter_user_type_id' => $parameterUserTypeId,
                             'vat_number' => $value['vat_number'],
                             'name' => !empty($value['name']) ? $value['name']: null,
                             'surname' => !empty($value['surname']) ? $value['surname']: null,
@@ -901,6 +928,7 @@ class EntitiesController extends Controller
 
                         $newEntry = EntityVatNumber::whereVatNumber($value['vat_number'])->firstOrFail();
 
+                        $newEntry->parameter_user_type_id = $parameterUserTypeId;
                         $newEntry->name =  !empty($value['name']) ? $value['name']: null;
                         $newEntry->surname = !empty($value['surname']) ? $value['surname']: null;
                         $newEntry->birthdate =  !empty($value['birthdate']) ? Carbon::createFromFormat('m/d/Y' , $value['birthdate'])->toDateTimeString(): null;
@@ -950,7 +978,7 @@ class EntitiesController extends Controller
         try {
             $entity = Entity::whereEntityKey($request->json('entity_key'))->firstOrFail();
             $typeOfRegistration = $request->json('type');
-
+            
             if($typeOfRegistration == 'vat_numbers'){
                 $vatNumberId = $request->json('value_id');
                 $vatNumber = $entity->vatNumbers()->whereId($vatNumberId)->first();
@@ -965,6 +993,23 @@ class EntitiesController extends Controller
             return response()->json(['error' => 'Entity not Found'], 404);
         } catch (Exception $e) {
             return response()->json(['error' => 'Failed to import Entity Registration values'], 500);
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    public function deleteAllRegistrationValues(Request $request)
+    {
+        try {
+            $entity = Entity::whereEntityKey($request->json('entity_key'))->firstOrFail();
+            $parameterUserTypeId = $request->json('parameter_user_type_id');
+            
+            $vatNumber = $entity->vatNumbers()->where('parameter_user_type_id', $parameterUserTypeId)->delete();
+
+            return response()->json("All values deleted", 200);
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['error' => 'Entity not Found'], 404);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to delete all values'], 500);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }
@@ -986,15 +1031,11 @@ class EntitiesController extends Controller
     {
         try {
             $vatNumber = $request->json('vat_number');
-            $name = $request->json('name');
-            $surname = $request->json('surname');
             $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->firstOrFail();
 
             $responseVatNumber = ($entity->vatNumbers()->whereVatNumber($vatNumber)->exists()) ? true : false;
 
-            $responseName = ($entity->vatNumbers()->whereName($name)->whereSurname($surname)->exists()) ? true : false;
-
-            return response()->json(['vat_number'=> $responseVatNumber, 'name' => $responseName], 200);
+            return response()->json(['vat_number'=> $responseVatNumber], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json(['error' => 'Entity not Found'], 404);
         } catch (Exception $e) {

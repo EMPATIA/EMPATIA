@@ -222,10 +222,45 @@ class Notify
                 'code' => $code
             ]
         ]);
-        
+
         if($response->statusCode() != 200) {
             throw new Exception(trans("comModulesNotify.errorGettingTemplateEmail"));
         }
         return $response->json();
+    }
+
+    /**
+     * @param Request $request
+     * @param $site
+     * @param $templateKey
+     * @param $usersEmail
+     * @param $user_key
+     * @param $tags
+     * @return bool
+     */
+    public static function sendEmailByTemplate(Request $request, $site, $templateKey, $usersEmail, $user_key, $tags){
+
+        if(isset($site->no_reply_email)) {
+            $response = ONE::post([
+                'component' => 'notify',
+                'api' => 'email',
+                'method' => 'send',
+                'attribute' => $templateKey,
+                'params' => [
+                    'no_reply' => $site->no_reply_email,
+                    'sender_name' => $site->name,
+                    'recipient' => $usersEmail,
+                    'content' => $tags,
+                    'user_key' => $user_key
+                ],
+                'headers' =>  [
+                    "X-ENTITY-KEY: ". $request->header('X-ENTITY-KEY'),
+                    "LANG-CODE: ". $request->header('LANG-CODE'),
+                    "LANG-CODE-DEFAULT: ". $request->header('LANG-CODE-DEFAULT')
+                ]
+            ]);
+            return $response->json();
+        }
+        return false;
     }
 }

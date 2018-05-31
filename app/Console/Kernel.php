@@ -4,6 +4,8 @@ namespace App\Console;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+use App\Http\Controllers\OrchUsersController;
+use App\Modules\OpenData\Controllers\OpenDataController;
 
 class Kernel extends ConsoleKernel
 {
@@ -29,6 +31,16 @@ class Kernel extends ConsoleKernel
 
         //Run everyday at 00 AM - Topics Near Deadline Notification
         $schedule->call('\App\Http\Controllers\TopicsController@topicsNearVoteEndingAlert')->dailyAt('00:01');
+        
+        /* Anonymize Users Queue - run every 5 minutes */
+        $schedule->call(function() {
+            OrchUsersController::anonymizeUsers();
+        })->everyFiveMinutes();
+
+        /* Export Open Data - run every midnight */
+        $schedule->call(function() {
+            OpenDataController::exportToDb();
+        })->dailyAt("00:00");
     }
 
     /**

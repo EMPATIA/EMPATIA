@@ -24,24 +24,7 @@ class CreateFlagTypeTranslationsTable extends Migration
             $table->timestamps();
             $table->softDeletes();
         });
-
-        $flagTypeTranslations = array(
-            array('id' => '1',  'flag_type_id' => '1',  'title' => 'Topics',    'description' => 'Flag Types for Topics',   'language_code' => 'pt',    'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-            array('id' => '2',  'flag_type_id' => '1',  'title' => 'Topics',    'description' => 'Flag Types for Topics',   'language_code' => 'cz',    'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-            array('id' => '3',  'flag_type_id' => '1',  'title' => 'Topics',    'description' => 'Flag Types for Topics',   'language_code' => 'it',    'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-            array('id' => '4',  'flag_type_id' => '1',  'title' => 'Topics',    'description' => 'Flag Types for Topics',   'language_code' => 'de',    'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-            array('id' => '5',  'flag_type_id' => '1',  'title' => 'Topics',    'description' => 'Flag Types for Topics',   'language_code' => 'en',    'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-            array('id' => '6',  'flag_type_id' => '1',  'title' => 'Topics',    'description' => 'Flag Types for Topics',   'language_code' => 'fr',    'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-            array('id' => '7',  'flag_type_id' => '1',  'title' => 'Topics',    'description' => 'Flag Types for Topics',   'language_code' => 'es',    'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-            array('id' => '8',  'flag_type_id' => '2',  'title' => 'Posts',     'description' => 'Flag Types for Posts',    'language_code' => 'pt',    'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-            array('id' => '9',  'flag_type_id' => '2',  'title' => 'Posts',     'description' => 'Flag Types for Posts',    'language_code' => 'cz',    'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-            array('id' => '10', 'flag_type_id' => '2',  'title' => 'Posts',     'description' => 'Flag Types for Posts',    'language_code' => 'it',    'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-            array('id' => '11', 'flag_type_id' => '2',  'title' => 'Posts',     'description' => 'Flag Types for Posts',    'language_code' => 'de',    'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-            array('id' => '12', 'flag_type_id' => '2',  'title' => 'Posts',     'description' => 'Flag Types for Posts',    'language_code' => 'en',    'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-            array('id' => '13', 'flag_type_id' => '2',  'title' => 'Posts',     'description' => 'Flag Types for Posts',    'language_code' => 'fr',    'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-            array('id' => '14', 'flag_type_id' => '2',  'title' => 'Posts',     'description' => 'Flag Types for Posts',    'language_code' => 'es',    'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-        );
-        DB::table('flag_type_translations')->insert($flagTypeTranslations);
+        
     }
 
     /**

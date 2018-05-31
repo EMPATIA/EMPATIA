@@ -425,12 +425,23 @@ class EntityPermissionController extends Controller
      */
     public function store(Request $request)
     {
-        $user_key= ONE::verifyToken($request);
+        if(!env("DEMO_MODE",false)){
+            $user_key= ONE::verifyToken($request);
+        }
         //ONE::verifyKeysRequest($this->keysRequired['store'], $request);
 
         try {
 
-            $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->first();
+            if(env("DEMO_MODE",false)){
+                $user_key = $request->user_key;
+                $entityKey = $request->entity_key;
+                $entity = Entity::whereEntityKey($entityKey)->first();
+            }
+            else{
+                $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->first();
+            }
+
+            
             if (empty($entity)){
                 throw new Exception("Entity not found", 30);
             }

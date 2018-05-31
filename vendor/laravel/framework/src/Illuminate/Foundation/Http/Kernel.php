@@ -124,7 +124,9 @@ class Kernel implements KernelContract
             $response = $this->renderException($request, $e);
         }
 
-        event(new Events\RequestHandled($request, $response));
+        $this->app['events']->dispatch(
+            new Events\RequestHandled($request, $response)
+        );
 
         return $response;
     }
@@ -208,7 +210,7 @@ class Kernel implements KernelContract
                 continue;
             }
 
-            list($name, $parameters) = $this->parseMiddleware($middleware);
+            list($name) = $this->parseMiddleware($middleware);
 
             $instance = $this->app->make($name);
 

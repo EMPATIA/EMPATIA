@@ -2,37 +2,48 @@
 
 namespace App\Http\Controllers;
 
+use App\CbTemplate;
+use App\CbType;
+use App\ComModules\Vote;
+use App\Configuration;
+use App\ConfigurationType;
+use App\Entity;
+use App\EntityCb;
+use App\FlagType;
+use App\LoginLevel;
+use App\OrchUser;
+use App\ParameterField;
+use App\CbVote;
+use App\ParameterOption;
+use App\ParameterUserType;
 use App\Cb;
+use App\Cooperation;
+use App\Cooperator;
 use App\Site;
 use App\Post;
 use App\User;
 use App\Topic;
+use App\TopicVersion;
 use Exception;
-use App\CbVote;
 use App\Status;
-use App\CbType;
 use App\One\One;
-use App\FlagType;
-use App\OrchUser;
-use App\EntityCb;
 use App\Parameter;
 use Carbon\Carbon;
 use App\PostAbuse;
 use App\StatusType;
-use App\CbTemplate;
 use App\CbModerator;
 use App\OperationType;
 use App\Http\Requests;
-use App\Configuration;
-use App\ComModules\Vote;
 use App\OperationAction;
 use App\TechnicalAnalysis;
+use App\UserLoginLevel;
+use App\UserParameter;
 use App\VoteConfiguration;
-use App\ConfigurationType;
 use Illuminate\Http\Request;
 use App\TechnicalAnalysisQuestion;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use App\TopicParameters;
 
 
 /**
@@ -295,6 +306,13 @@ class CbsController extends Controller
     public function index(Request $request)
     {
         try {
+            if(!empty($request->analytics)){
+                if($request->analytics == 1){
+                    $cbs = Cb::select('cb_key', 'title')->pluck('cb_key','title');
+                    return response()->json(['cbs' => $cbs], 200);
+                }
+            }
+
             $cbs = Cb::with("configurations","news")->get();
 
             foreach ($cbs as $cb)
@@ -539,6 +557,9 @@ class CbsController extends Controller
      */
     public function store(Request $request)
     {
+        if(!empty($request->filters)){
+            $filters = json_encode($request->filters);
+        }
         $userKey = ONE::verifyToken($request);
 
         ONE::verifyKeysRequest($this->required["store"], $request);
@@ -557,16 +578,32 @@ class CbsController extends Controller
                     'title' => $request->json('title'),
                     'contents' => $request->json('contents'),
                     'tag' => $request->json('tag') ?? null,
+                    'template' => $request->json('template') ?? null,
+                    'page_key' => $request->json('page_key') ?? null,
                     'created_by' => $userKey,
                     'blocked' => is_null($request->json('blocked')) ? 0 : $request->json('blocked'),
                     'status_id' => is_null($request->json('status_id')) ? 0 : $request->json('status_id'),
                     'layout_code' => is_null($request->json('layout_code')) ? 0 : $request->json('layout_code'),
                     'parent_cb_id' => is_null($request->json('parent_cb_id')) ? 0 : $request->json('parent_cb_id'),
                     'start_date' => Carbon::createFromFormat('Y-m-d', $request->json('start_date'))->toDateTimeString(),
-                    'end_date' => !empty($request->json('end_date')) ? Carbon::createFromFormat('Y-m-d', $request->json('end_date'))->toDateTimeString() : null
+                    'end_date' => !empty($request->json('end_date')) ? Carbon::createFromFormat('Y-m-d', $request->json('end_date'))->toDateTimeString() : null,
+                    'start_topic' => !empty($request->json('start_topic')) ? $request->start_topic = date("Y-m-d H:i", strtotime($request->start_topic)) : null,
+                    'end_topic' => !empty($request->json('end_topic')) ? $request->end_topic = date("Y-m-d H:i", strtotime($request->end_topic)) : null,
+                    'start_topic_edit' => !empty($request->json('start_topic_edit')) ? $request->start_topic_edit = date("Y-m-d H:i", strtotime($request->start_topic_edit)) : null,
+                    'end_topic_edit' => !empty($request->json('end_topic_edit')) ? $request->end_topic_edit = date("Y-m-d H:i", strtotime($request->end_topic_edit)) : null,
+                    'start_submit_proposal' => !empty($request->json('start_submit_proposal')) ? $request->start_submit_proposal = date("Y-m-d H:i", strtotime($request->start_submit_proposal)) : null,
+                    'end_submit_proposal' => !empty($request->json('end_submit_proposal')) ? $request->end_submit_proposal = date("Y-m-d H:i", strtotime($request->end_submit_proposal)) : null,
+                    'start_technical_analysis' => !empty($request->json('start_technical_analysis')) ? $request->start_technical_analysis = date("Y-m-d H:i", strtotime($request->start_technical_analysis)) : null,
+                    'end_technical_analysis' => !empty($request->json('end_technical_analysis')) ? $request->end_technical_analysis = date("Y-m-d H:i", strtotime($request->end_technical_analysis)) : null,
+                    'start_complaint' => !empty($request->json('start_complaint')) ? $request->start_complaint = date("Y-m-d H:i", strtotime($request->start_complaint)) : null,
+                    'end_complaint' => !empty($request->json('end_complaint')) ? $request->end_complaint = date("Y-m-d H:i", strtotime($request->end_complaint)) : null,
+                    'start_show_results' => !empty($request->json('start_show_results')) ? $request->start_show_results = date("Y-m-d H:i", strtotime($request->start_show_results)) : null,
+                    'end_show_results' => !empty($request->json('end_show_results')) ? $request->end_show_results = date("Y-m-d H:i", strtotime($request->end_show_results)) : null,      
+                    'start_vote' => !empty($request->json('start_vote')) ? $request->start_vote = date("Y-m-d H:i", strtotime($request->start_vote)) : null,
+                    'end_vote' => !empty($request->json('end_vote')) ? $request->end_vote = date("Y-m-d H:i", strtotime($request->end_vote)) : null,
+                    'filters' => !isset($filters) ? 0 : $filters,
                 ]
             );
-
             return response()->json($cb, 201);
         } catch (Exception $e) {
             return response()->json(['error' => 'Failed to store new CB'], 500);
@@ -758,24 +795,44 @@ class CbsController extends Controller
         ONE::verifyToken($request);
 
         ONE::verifyKeysRequest($this->required["update"], $request);
-
+        $filters = null;
+        if(!empty($request->filters)){
+            $filters = json_encode($request->filters);
+        }
         try {
             $cb = Cb::whereCbKey($cbKey)->firstOrFail();
             $cb->title = $request->json('title');
             $cb->contents = $request->json('contents');
             $cb->tag = $request->json('tag') ?? null;
+            $cb->template = $request->json('template') ?? null;
+            $cb->page_key = $request->json('page_key') ?? null;
             $cb->blocked = empty($request->json('blocked')) ? 0 : $request->json('blocked');
             $cb->status_id = empty($request->json('status_id')) ? 0 : $request->json('status_id');
             $cb->layout_code = empty($request->json('layout_code')) ? 0 : $request->json('layout_code');
             $cb->parent_cb_id = empty($request->json('parent_cb_id')) ? 0 : $request->json('parent_cb_id');
             $cb->start_date = Carbon::createFromFormat('Y-m-d', $request->json('start_date'))->toDateTimeString();
             $cb->end_date = !empty($request->json('end_date')) ? Carbon::createFromFormat('Y-m-d', $request->json('end_date'))->toDateTimeString() : null;
-
+            $cb->start_topic = !empty($request->json('start_topic')) ? $request->start_topic = date("Y-m-d H:i", strtotime($request->start_topic)) : null;
+            $cb->end_topic = !empty($request->json('end_topic')) ? $request->end_topic = date("Y-m-d H:i", strtotime($request->end_topic)) : null;
+            $cb->start_topic_edit = !empty($request->json('start_topic_edit')) ? $request->start_topic_edit = date("Y-m-d H:i", strtotime($request->start_topic_edit)) : null;
+            $cb->end_topic_edit = !empty($request->json('end_topic_edit')) ? $request->end_topic_edit = date("Y-m-d H:i", strtotime($request->end_topic_edit)) : null;
+            $cb->start_submit_proposal = !empty($request->json('start_submit_proposal')) ? $request->start_submit_proposal = date("Y-m-d H:i", strtotime($request->start_submit_proposal)) : null;
+            $cb->end_submit_proposal = !empty($request->json('end_submit_proposal')) ? $request->end_submit_proposal = date("Y-m-d H:i", strtotime($request->end_submit_proposal)) : null;
+            $cb->start_technical_analysis = !empty($request->json('start_technical_analysis')) ? $request->start_technical_analysis = date("Y-m-d H:i", strtotime($request->start_technical_analysis)) : null;
+            $cb->end_technical_analysis = !empty($request->json('end_technical_analysis')) ? $request->end_technical_analysis = date("Y-m-d H:i", strtotime($request->end_technical_analysis)) : null;
+            $cb->start_complaint = !empty($request->json('start_complaint')) ? $request->start_complaint = date("Y-m-d H:i", strtotime($request->start_complaint)) : null;
+            $cb->end_complaint = !empty($request->json('end_complaint')) ? $request->end_complaint = date("Y-m-d H:i", strtotime($request->end_complaint)) : null;
+            $cb->start_show_results = !empty($request->json('start_show_results')) ? $request->start_show_results = date("Y-m-d H:i", strtotime($request->start_show_results)) : null;
+            $cb->end_show_results = !empty($request->json('end_show_results')) ? $request->end_show_results = date("Y-m-d H:i", strtotime($request->end_show_results)) : null;
+            $cb->start_vote = !empty($request->json('start_vote')) ? $request->start_vote = date("Y-m-d H:i", strtotime($request->start_vote)) : null;
+            $cb->end_vote = !empty($request->json('end_vote')) ? $request->end_vote = date("Y-m-d H:i", strtotime($request->end_vote)) : null;
+            $cb->filters = !is_null($filters) ? $filters : null;
             $cb->save();
             return response()->json($cb, 200);
         } catch (ModelNotFoundException $e) {
             return response()->json(['error' => 'CB not Found'], 404);
         } catch (Exception $e) {
+            dd($e->getMessage());
             return response()->json(['error' => 'Failed to update a CB'], 500);
         }
 
@@ -1230,6 +1287,22 @@ class CbsController extends Controller
                 if(isset($parameters['vote_event']))
                     unset($parameters['vote_event']);
             }
+
+            //GET WITH POST FLAGS TODO: WE NEED TO PREPARE THIS FOR CB,TOPIC FLAGS
+            if($request['withFlags']==-1) { //WE DON'T WANT FLAGS
+                //GET THE POSTS THAT DON'T HAVE FLAGS
+                $query = $query->whereDoesntHave('flags');
+            } elseif($request['withFlags']) {
+                //CHECK IF WE WANT POSTS WITH A SPECIFIC FLAG
+                if (isset($request['withFlags'])) {
+                    //SET THE FLAG TO FILTER BY
+                    $flagToFilter = $request['withFlags'];
+                    $query = $query->whereHas('flags',function ($q) use($flagToFilter){
+                        $q->where('flag_id', '=', $flagToFilter)->where("active","=","1");
+                    });
+                }
+            }
+
             $query = $query
                 ->with('parameters.type', 'lastPost', 'parameters.options', 'parameters.options.padPermissions','parameters.options.parameterOptionFields', 'technicalAnalysis');
 
@@ -1243,7 +1316,12 @@ class CbsController extends Controller
 
 
             if(!empty($tableData['search']['value'])) {
-                $query = $query->where('title', 'like', '%'.$tableData['search']['value'].'%');
+                $query = $query
+                    ->where(function($q) use ($tableData) {
+                        $q
+                            ->where('title', 'like', '%'.$tableData['search']['value'].'%')
+                            ->orWhere('topic_number', '=', $tableData['search']['value']);
+                    });
             }
 
 
@@ -1364,6 +1442,34 @@ class CbsController extends Controller
                 }
             }
 
+            return response()->json(['data' => $data], 200);
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['error' => 'CB not found'], 404);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to retrieve the Topic list'], 500);
+        }
+
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    /**
+     * @param Request $request
+     * @param $cbKey
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getTopicsList(Request $request, $cbKey)
+    {
+        try {
+            $cb = Cb::whereCbKey($cbKey)->first();
+            $data = array();
+            if($cb){
+                $topics = Topic::whereCbId($cb->id)->get();
+                if($topics) {
+                    foreach ($topics as $topic) {
+                        $data[] = $topic;
+                    }
+                }
+            }
             return response()->json(['data' => $data], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json(['error' => 'CB not found'], 404);
@@ -2078,7 +2184,7 @@ class CbsController extends Controller
             $response['moderators'] = $cb->moderators()->get();
             $response['configurations'] = $cb->configurations()->select('code')->pluck('code');
             $response['votes'] = $cb->votes()->get()->keyBy('vote_key');
-            $response['statusTypes'] = $statusTypeItem->getStatusTypes(['langCode' => $request->header('LANG-CODE'), 'langCodeDefault' => $request->header('LANG-CODE-DEFAULT')]);
+            $response['statusTypes'] = $statusTypeItem->getStatusTypes($request,['langCode' => $request->header('LANG-CODE'), 'langCodeDefault' => $request->header('LANG-CODE-DEFAULT')]);
             $response['voteKeys'] = $cb->votes()->get()->pluck('vote_key');
 
             return response()->json($response, 200);
@@ -3718,7 +3824,7 @@ class CbsController extends Controller
                     }
                 }
 
-                $posts = $topic->posts()->whereEnabled(1)->whereActive(1)->count();
+                $posts = $topic->posts()->whereEnabled(1)->count();
 
                 $topic['statistics'] = ['posts_counter' => $posts];
 
@@ -3738,7 +3844,7 @@ class CbsController extends Controller
             $response['moderators'] = $cb->moderators()->get();
             $response['configurations'] = $cb->configurations()->select('code')->pluck('code');
             $response['votes'] = $cb->votes()->get()->keyBy('vote_key');
-            $response['statusTypes'] = $statusTypeItem->getStatusTypes(['langCode' => $request->header('LANG-CODE'), 'langCodeDefault' => $request->header('LANG-CODE-DEFAULT')]);
+            $response['statusTypes'] = $statusTypeItem->getStatusTypes($request,['langCode' => $request->header('LANG-CODE'), 'langCodeDefault' => $request->header('LANG-CODE-DEFAULT')]);
             $response['voteKeys'] = $cb->votes()->get()->pluck('vote_key');
             $response['pageToken'] = $pageToken;
             $response['statistics'] = $this->getStatistics($cb);
@@ -4315,7 +4421,7 @@ class CbsController extends Controller
             $response['moderators'] = $cb->moderators()->get();
             $response['configurations'] = $cb->configurations()->select('code')->pluck('code');
             $response['votes'] = $cb->votes()->get()->keyBy('vote_key');
-            $response['statusTypes'] = $statusTypeItem->getStatusTypes(['langCode' => $request->header('LANG-CODE'), 'langCodeDefault' => $request->header('LANG-CODE-DEFAULT')]);
+            $response['statusTypes'] = $statusTypeItem->getStatusTypes($request,['langCode' => $request->header('LANG-CODE'), 'langCodeDefault' => $request->header('LANG-CODE-DEFAULT')]);
             $response['voteKeys'] = $cb->votes()->get()->pluck('vote_key');
             $response['pageToken'] = $pageToken;
             $response['statistics'] = $this->getStatistics($cb);
@@ -4369,6 +4475,7 @@ class CbsController extends Controller
     {
         try {
             $data = [];
+            $totalVotes = [];
             $cb = Cb::with('votes')->whereCbKey($cbKey)->firstOrFail();
 
             if ($request->withVotes) {
@@ -4383,10 +4490,9 @@ class CbsController extends Controller
                 }
             }
 
-            $exportIds = $request->input('exportIds');
+            $exportIds = json_decode($request->input('exportIds'));
 
             if (!empty($exportIds)) {
-                $exportIds = json_decode($exportIds);
                 $orderFields = implode(',', $exportIds);
 
                 $topics = $cb->topics()->with([
@@ -4431,15 +4537,19 @@ class CbsController extends Controller
 
                 $parameters = [];
                 $dropDownOptions = [];
+                $voteData = [];
 
-                if ($request->withVotes) {
-
-                    $voteData = [];
+                if ($request->withVotes && !empty($totalVotes)) {
                     foreach ($totalVotes as $key => $totalEventVotes) {
                         if (isset($totalEventVotes[$topic->topic_key])) {
-                            $voteData[$key]['votes'] = $totalEventVotes->get($topic->topic_key)->positive;
+                            $voteData[$key]['votes'] = $totalEventVotes->get($topic->topic_key)->positive + $totalEventVotes->get($topic->topic_key)->negative;
+                            $voteData[$key]['positive'] = $totalEventVotes->get($topic->topic_key)->positive;
+                            $voteData[$key]['negative'] = $totalEventVotes->get($topic->topic_key)->negative;
                         } else {
                             $voteData[$key]['votes'] = 0;
+                            $voteData[$key]['positive'] = 0;
+                            $voteData[$key]['negative'] = 0;
+
                         }
                         if  (isset($eventNames[$key])) {
                             $voteData[$key]['name'] = $eventNames[$key]['name'];
@@ -4455,26 +4565,29 @@ class CbsController extends Controller
                 if (!empty($parameters = json_decode($topic->_cached_data))) {
                     if(!empty($parameters->parameters)){
                         foreach ($parameters->parameters as $parameter) {
-                            if (!empty($parameterTrans[$parameter->id])) {
-                                $parameter->parameter = $parameterTrans[$parameter->id]['parameter'];
-                                $parameter->description = $parameterTrans[$parameter->id]['description'];
-                            } else {
-                                $langCode = $request->header('LANG-CODE');
-                                $langCodeDefault = $request->header('LANG-CODE-DEFAULT');
-                                if (!($parameter->translations->$langCode)) {
-                                    if (!$parameter->translations->$langCodeDefault) {
-                                        $firstTranslationFound = $parameter->translations->first();
-                                        $parameter->parameter = $firstTranslationFound->parameter;
-                                        $parameter->description = $firstTranslationFound->description;
-                                    }
+                            if(!empty($parameter->id)){
+                                if (!empty($parameterTrans[$parameter->id])) {
+                                    $parameter->parameter = $parameterTrans[$parameter->id]['parameter'];
+                                    $parameter->description = $parameterTrans[$parameter->id]['description'];
                                 } else {
-                                    $parameter->parameter = $parameter->translations->$langCode->parameter;
-                                    $parameter->description = $parameter->translations->$langCode->description;
-                                }
-                                $parameterTrans[$parameter->id] = ['parameter' => $parameter->parameter, 'description' => $parameter->description];
+                                    $langCode = $request->header('LANG-CODE');
+                                    $langCodeDefault = $request->header('LANG-CODE-DEFAULT');
+                                    if (!isset($parameter->translations->$langCode)) {
+                                        if (!$parameter->translations->$langCodeDefault) {
+                                            $firstTranslationFound = $parameter->translations->first();
+                                            $parameter->parameter = $firstTranslationFound->parameter;
+                                            $parameter->description = $firstTranslationFound->description;
+                                        }
+                                    } else {
+                                        $parameter->parameter = $parameter->translations->$langCode->parameter;
+                                        $parameter->description = $parameter->translations->$langCode->description;
+                                    }
+                                    $parameterTrans[$parameter->id] = ['parameter' => $parameter->parameter, 'description' => $parameter->description];
 
+                                }
                             }
-                            if (!empty($options = $parameter->options)) {
+                            if (!empty($parameter->options)) {
+                                $options = $parameter->options;
                                 foreach ($options as $option) {
                                     if (!empty($option)) {
                                         $langCode = $request->header('LANG-CODE');
@@ -4482,7 +4595,7 @@ class CbsController extends Controller
                                         if (!empty($parameterOptionTrans[$option->id])) {
                                             $option->label = $parameterOptionTrans[$option->id]['label'];
                                         } else {
-                                            if (!($option->translations->$langCode)) {
+                                            if (!isset($option->translations->$langCode)) {
                                                 if (!$option->translations->$langCodeDefault) {
                                                     $firstTranslationFound = $option->translations->first();
                                                     $option->label = $firstTranslationFound->label;
@@ -4490,7 +4603,7 @@ class CbsController extends Controller
                                             } else {
                                                 $option->label = $option->translations->$langCode->label;
                                             }
-                                            $parameterOptionTrans[$option->id] = ['label' => $option->translations->$langCode->label];
+                                            $parameterOptionTrans[$option->id] = ['label' => $option->label];
                                         }
 
                                         $parameterOptionFields = $option->fields;
@@ -4510,7 +4623,6 @@ class CbsController extends Controller
                         $topic->parameters = [];
                     }
                 }
-
                 $status = $topic->status->where("active", 1)->first();
                 if (!empty($status->statusType)) {
                     if (!empty($statusTrans[$status->statusType->id])) {
@@ -4546,7 +4658,7 @@ class CbsController extends Controller
         catch (ModelNotFoundException $e) {
             return response()->json(['error' => 'CB not found'], 404);
         } catch (Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            return response()->json(['error' => $e->getMessage(), 'line' => $e->getLine()], 500);
         }
 
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -4561,6 +4673,7 @@ class CbsController extends Controller
      */
     public function exportTopics(Request $request, $cbKey)
     {
+        $userKey = ONE::verifyLogin($request);
         try {
             ONE::verifyKeysRequest(['topic_keys','cb_key_export'], $request);
             $topicKeys = $request->json('topic_keys');
@@ -4570,8 +4683,12 @@ class CbsController extends Controller
             $cb = Cb::whereCbKey($cbKey)->firstOrFail();
             $cbExport = Cb::whereCbKey($cbKeyExport)->firstOrFail();
             $topics = $cb->topics()->with(['parameters.type', 'parameters.options','firstPost','firstPost.files'])->whereIn('topic_key',$topicKeys)->get();
+            $moderatedStatusType = StatusType::whereCode("moderated")->first();
 
-            foreach ($topics as $topic){
+            foreach ($topics as $topic) {
+                $cooperatorsFromOldTopic = $topic->cooperators()->get();
+                $statusFromOldTopic = $topic->status()->get();
+
                 /** *************** Topic exported Creation *************** */
                 do {
                     $key = '';
@@ -4581,7 +4698,7 @@ class CbsController extends Controller
                     }
                 } while ($exists);
 
-                $lastTopic = Topic::whereCbId($cbExport->id)->orderBy('created_at', 'desc')->first();
+                $lastTopic = Topic::whereCbId($cbExport->id)->orderBy('topic_number', 'desc')->first();
 
                 $lastId = Topic::withTrashed()->max('id');
                 $newId = empty($lastId) ? 1 : $lastId + 1;
@@ -4591,13 +4708,14 @@ class CbsController extends Controller
                     [
                         'id' => $newId,
                         'topic_key' => $key,
-                        'parent_topic_id' => 0,
+                        'parent_topic_id' => $topic->id,
                         'created_by' => $topic->created_by,
                         'created_on_behalf' => $topic->created_on_behalf,
                         'title' => $topic->title,
-                        'description' => $topic->first_post->contents ?? $topic->description,
+                        'contents' => $topic->contents ?? $topic->first_post->contents,
+                        'description' => $topic->description ?? $topic->first_post->description ?? null,
                         'blocked' => $topic->blocked,
-                        'contents' => $topic->summary ?? '',
+                        'summary' => $topic->summary ?? '',
                         'status_id' => is_null($request->json('status_id')) ? 0 : clean($request->json('status_id')),
                         'q_key' => $topic->q_key,
                         'topic_number' => !isset($lastTopic->topic_number) ? 1 : $lastTopic->topic_number + 1,
@@ -4607,6 +4725,48 @@ class CbsController extends Controller
                     ]
                 );
 
+                if(!empty($cooperatorsFromOldTopic)){
+                    foreach($cooperatorsFromOldTopic as $cooperator){
+                        $cooperatorNewKey = null;
+                        do {
+                            $rand = str_random(32);
+
+                            if (!($exists = Cooperator::whereToken($rand)->exists())) {
+                                $cooperatorNewKey = $rand;
+                            }
+                        } while ($exists);
+
+                        $newCooperator = Cooperator::create(
+                            [
+                                'topic_id'      => $topicExported->id,
+                                'user_key'      => $cooperator->user_key,
+                                'type_id'       => $cooperator->type_id,
+                                'created_by'    => $cooperator->created_by,
+//                            temporary bypass
+//                            'token'         => $key
+                                'token'         => null
+                            ]
+                        );
+
+                        //temporary bypass
+//                    $cooperation = Cooperation::whereCode('requested')->firstOrFail();
+                        $cooperation = Cooperation::whereCode('accepted')->firstOrFail();
+
+                        $cooperator->cooperations()->attach($cooperation);
+                    }
+
+                }
+
+                $topicVersionExported = $topicExported->topicVersions()->create([
+                    'topic_id' => $topicExported->id,
+                    'title' => $topicExported->title,
+                    'summary' => !empty($topicExported->summary) ? $topicExported->summary : null,
+                    'contents' => $topicExported->contents,
+                    'description' => !empty($topicExported->description) ? $topicExported->description : null,
+                    'active' => 1,
+                    'version' => 1,
+                    'created_by' => $topicExported->created_by
+                ]);
 
                 $realFirstPost = Post::with("files")->whereTopicId($topic->id)
                     ->orderBy('id', 'asc')
@@ -4622,11 +4782,36 @@ class CbsController extends Controller
                  *  Create topic exported params mapping by topic params
                  */
                 if (!empty($parametersMapping)) {
-                    $this->mappingTopicParameters($topic,$topicExported,$parametersMapping,$optionsMapping);
+                    $this->mappingTopicParameters($topic,$topicExported,$parametersMapping,$optionsMapping,$topicVersionExported);
                 }
 
                 /** *************** END Topic creation *************** */
+                /* Moderate topic */
+                if (!is_null($moderatedStatusType)){
+                    //"disable" previous statuses
+                    $statusUpdate = Status::whereTopicId($topicExported->id)->update(['active' => 0]);
 
+                    //new key for status
+                    do {
+                        $rand = str_random(32);
+                        if (!($exists = Status::whereStatusKey($rand)->exists())) {
+                            $key = $rand;
+                        }
+                    } while ($exists);
+
+                    $moderatedStatusType->status()->create(
+                        [
+                            'status_key' => $key,
+                            'status_type_id' => $moderatedStatusType->id,
+                            'topic_id' => $topicExported->id,
+                            'active' => 1,
+                            'created_by' => $userKey
+                        ]
+                    );
+                }
+
+                /* Update Topic Cache */
+                (new TopicsController())->updateTopicParametersCache($topicExported->topic_key, $topicVersionExported);
             }
 
             return response()->json('ok', 200);
@@ -4683,12 +4868,12 @@ class CbsController extends Controller
      * @param $topicExported
      * @param $optionsMapping
      */
-    private function mappingTopicParameters($topic, $topicExported,$parametersMapping, $optionsMapping)
+    private function mappingTopicParameters($topic, $topicExported,$parametersMapping, $optionsMapping,$topicVersion)
     {
         $manualSyncParameters = [];
         $parameters = [];
         foreach ($topic->parameters as $parameter) {
-            if(!array_key_exists($parameter->id,$parametersMapping)){
+            if(!array_key_exists($parameter->id,$parametersMapping) || empty($parametersMapping[$parameter->id])){
                 continue;
             }
             if(count($parameter->options) > 0){
@@ -4702,14 +4887,19 @@ class CbsController extends Controller
                 $manualSyncParameters[$parametersMapping[$parameter->id]] = implode(",", $parameterOptionsExport);
             }
             else{
-                $parameters[$parametersMapping[$parameter->id]] = ['parameter_id' => $parametersMapping[$parameter->id],'value' => $parameter->pivot->value];
+                $parameters[$parametersMapping[$parameter->id]] = [
+                    'parameter_id' => $parametersMapping[$parameter->id],
+                    'value' => $parameter->pivot->value,
+                    'topic_version_id'=> $topicVersion->id
+                ];
             }
         }
         $topicExported->parameters()->sync($parameters);
 
         foreach ($manualSyncParameters as $id => $value){
             $topicExported->parameters()->attach($id, [
-                'value' =>  clean($value)
+                'value' =>  clean($value),
+                'topic_version_id' => $topicVersion->id
             ]);
         }
 
@@ -5040,7 +5230,7 @@ class CbsController extends Controller
     public function getTopicsWithBasicData($cbKey)
     {
         try {
-            $topics = Cb::whereCbKey($cbKey)->firstOrFail()->topics()->get();
+            $topics = Cb::whereCbKey($cbKey)->firstOrFail()->topics()->with("activeStatus.statusType")->get();
 
             $data = [];
             foreach ($topics as $topic) {
@@ -5048,6 +5238,7 @@ class CbsController extends Controller
                     "topic_key" => $topic->topic_key,
                     "created_by" => $topic->created_by,
                     "title" => $topic->title,
+                    "active_status" => $topic->status->first()??[]
                 );
             }
 
@@ -5086,7 +5277,27 @@ class CbsController extends Controller
             case "order_by_multi_vote":
                 $this->orderByGivenVoteMethod($request, $cb, $query, "multi_voting");
                 break;
+            case "order_by_topic_number":
+                $query->orderBy("topic_number","ASC");
+                break;
+            case (preg_match('/order_by_parameter_\d+/',$sortOrder) ? true : false):
+                preg_match('/order_by_parameter_(\d+)/',$sortOrder,$sortOrderMatches);
+                if(count($sortOrderMatches)==2 && (!empty($sortOrderMatches[1]) || $sortOrderMatches[1]=="0")) {
+                    $parameter = $cb->parameters->where("id","=",$sortOrderMatches[1])->first();
 
+                    $topicIds = $query->pluck("id");
+                    $activeTopicVersionIds = TopicVersion::whereIn("topic_id",$topicIds)->pluck("id");
+                    $orderedTopicIds = TopicParameters::whereIn("topic_version_id",$activeTopicVersionIds)->whereParameterId($parameter->id);
+
+                    /* Needed because the column is varchar and will not order as number by default */
+                    if ($parameter->code=="numeric")
+                        $orderedTopicIds = $orderedTopicIds->orderByRaw("ABS(`value`) desc");
+                    else
+                        $orderedTopicIds = $orderedTopicIds->orderBy("value");
+
+                    $query->orderByRaw("FIELD(id,'" . $orderedTopicIds->pluck("topic_id")->implode("','") . "')");
+                    break;
+                }
             default:
                 $query->orderBy('created_at', 'DESC');
 //            default:
@@ -5222,7 +5433,6 @@ class CbsController extends Controller
                 $currentSent = json_decode(Cache::get($pageToken),true);
             }
             //GET THE CB AND STORE IT
-
             if (Cache::has($pageToken)){
                 $cb = CB::whereCbKey($cbKey)->firstOrFail();
             }else{
@@ -5237,16 +5447,17 @@ class CbsController extends Controller
                         'parameters.options.parameterOptionTranslations' => function ($q) use ($languageCode){
                             $q->where('language_code', '=', $languageCode);
                         },
+                        'parameters.options.parameterOptionFields',
                         'parameters.parameterFields',
                         'operationSchedules' => function($q) {
                             $q
                                 ->where("active","=","1")
                                 ->where(function($q) {
-                                    $q
-                                        ->whereDate("start_date",">",Carbon::now())
-                                        ->orWhereDate("end_date","<",Carbon::now());
+                                    $q->whereDate("start_date","<",Carbon::now())
+                                        ->WhereDate("end_date",">",Carbon::now());
                                 });
-                        }
+                        },
+                        'childs'
                     ])
                     ->firstOrFail();
             }
@@ -5255,12 +5466,27 @@ class CbsController extends Controller
             $operationSchedules = array();
             $operationTypes = OperationType::all();
             $operationActions = OperationAction::all();
+
             foreach ($operationTypes as $operationType) {
                 $operationSchedules[$operationType->code] = array();
 
                 foreach ($operationActions as $operationAction) {
                     $cbOperationSchedule = $cb->operationSchedules->where("operation_type_id",$operationType->id)->where("operation_action_id",$operationAction->id);
                     $operationSchedules[$operationType->code][$operationAction->code] = $cbOperationSchedule->isEmpty();
+                }
+            }
+
+            $dynamicOperations = $cb->operationSchedules()
+                ->where('active', 1)
+                ->get();
+
+            if ($dynamicOperations){
+                foreach ($dynamicOperations as $dynamicOperation){
+                    if ($dynamicOperation->start_date <= Carbon::now() && $dynamicOperation->end_date >= Carbon::now()){
+                        $operationSchedules[$dynamicOperation->type_code][$dynamicOperation->action_code] = true;
+                    } else {
+                        $operationSchedules[$dynamicOperation->type_code][$dynamicOperation->action_code] = false;
+                    }
                 }
             }
 
@@ -5285,7 +5511,7 @@ class CbsController extends Controller
             if (!empty($filterList['search'])) {
                 $search = $filterList["search"];
                 $query = $query->where(function ($q) use ($search) {
-                    $q->where("topics.title", "LIKE", "%" . $search . "%")->orWhere("topics.contents", "LIKE", "%" . $search . "%");
+                    $q->where("topics.title", "LIKE", "%" . $search . "%")->orWhere("topics.contents", "LIKE", "%" . $search . "%")->orWhere("topic_number","=",$search);
                 });
             }
 
@@ -5308,9 +5534,23 @@ class CbsController extends Controller
                         'posts.files',
                         'moderation_date'
                     ])
-                    ->whereRaw('topics.id in (select topic_id from status where active = 1 AND status_type_id <> ?)', [StatusType::whereCode('not_accepted')->first()->id])
-                    ->whereNotIn("topic_key",$currentSent);
+                    ->whereRaw('topics.id in (select topic_id from status where active = 1 AND (status_type_id = ? OR status_type_id = ? OR status_type_id = ?) )',
+                        [!is_null(StatusType::whereCode('not_accepted')->first()) ? StatusType::whereCode('not_accepted')->first()->id : null,
+                            !is_null(StatusType::whereCode('approved')->first()) ? StatusType::whereCode('approved')->first()->id : null,
+                            !is_null(StatusType::whereCode('moderated')->first()) ? StatusType::whereCode('moderated')->first()->id : null]);
+
+                if(isset($filterList['status'])){
+                    $statusId = StatusType::whereCode($filterList['status'])->first()->id;
+
+                    if(!empty($statusId)){
+                        $query = $query->whereRaw('topics.id in (select topic_id from status where active = 1 AND status_type_id = ?)', [$statusId]);
+                    }
+                }
+
+                $query = $query->whereNotIn("topic_key",$currentSent);
             }
+
+
 
             if($request->has("filter_list.parentTopicKey")){
                 $parentTopic =  Topic::whereTopicKey($filterList['parentTopicKey'])->first();
@@ -5324,9 +5564,7 @@ class CbsController extends Controller
             if($request->has("filter_list.filter_phases")){
                 $filterParameters[$request->get("filter_list")['filter_phases']] = 1;
                 unset($filterParameters['phases']);
-
             }
-            //dd($filterParameters);
             if(!empty($filterParameters)){
 
                 foreach ($filterParameters as $parameter => $parameterValue){
@@ -5379,13 +5617,13 @@ class CbsController extends Controller
 
                 $entityKey = $request->header('X-ENTITY-KEY','');
 
-                $users = User::whereHas('orchUser.entities', function ($q) use ($entityKey) {
-                    $q->where("entity_key","=",$entityKey);
-                })->whereIn('user_key', $userKeys)
-                    ->select('user_key', 'name', 'public_name','surname','public_surname','photo_id', 'photo_code')
+                $users = OrchUser::with("user:user_key,name,public_name,surname,public_surname,photo_id,photo_code")
+                    ->whereHas('entities', function ($q) use ($entityKey) {
+                        $q->where("entity_key","=",$entityKey);
+                    })
+                    ->whereIn('user_key', $userKeys)
                     ->get()
-                    ->keyBy('user_key');
-
+                    ->pluck("user","user_key");
 
                 foreach ($users as $user) {
                     if ($user->public_name!=1)
@@ -5403,7 +5641,7 @@ class CbsController extends Controller
                 $validation = json_decode($topic->_cached_data);
                 if (isset($validation->parameters) && !empty($parameters = $validation->parameters)) {
                     foreach ($parameters as $parameter) {
-                        if (!empty($parameterTrans[$parameter->id])) {
+                        if (!empty($parameter->id) && !empty($parameterTrans[$parameter->id])) {
                             $parameter->parameter =   $parameterTrans[$parameter->id]['parameter'];
                             $parameter->description =  $parameterTrans[$parameter->id]['description'];
                         } else {
@@ -5412,8 +5650,8 @@ class CbsController extends Controller
                             if (!isset($parameter->translations->$langCode)) {
                                 if (!isset($parameter->translations->$langCodeDefault)) {
                                     $firstTranslationFound = collect($parameter->translations)->first();
-                                    $parameter->parameter =  $firstTranslationFound->parameter;
-                                    $parameter->description =  $firstTranslationFound->description;
+                                    $parameter->parameter = !empty($firstTranslationFound->parameter) ? $firstTranslationFound->parameter : "";
+                                    $parameter->description = !empty($firstTranslationFound->description) ? $firstTranslationFound->description : "";
                                 } else {
                                     $parameter->parameter =  $parameter->translations->$langCodeDefault->parameter;
                                     $parameter->description =  $parameter->translations->$langCodeDefault->description;
@@ -5422,11 +5660,12 @@ class CbsController extends Controller
                                 $parameter->parameter =  $parameter->translations->$langCode->parameter;
                                 $parameter->description =  $parameter->translations->$langCode->description;
                             }
-                            $parameterTrans[$parameter->id] = ['parameter' => $parameter->parameter, 'description' => $parameter->description];
+                            if(!empty($parameter->id))
+                                $parameterTrans[$parameter->id] = ['parameter' => $parameter->parameter, 'description' => $parameter->description];
 
                         }
-                        if (!empty($options = $parameter->options)) {
-                            foreach ($options as $option) {
+                        if (!empty($parameter->options)) {
+                            foreach ($parameter->options as $option) {
                                 if (!empty($option)) {
                                     $langCode = $request->header('LANG-CODE');
                                     $langCodeDefault = $request->header('LANG-CODE-DEFAULT');
@@ -5451,7 +5690,13 @@ class CbsController extends Controller
                                     $parameterOptionFields = $option->fields;
                                     if(!empty($parameterOptionFields)) {
                                         foreach ($parameterOptionFields as $key => $parameterOptionField) {
-                                            $option->code = $parameterOptionField;
+                                            if (is_string($parameterOptionField))
+                                                $option->code = $parameterOptionField;
+                                            else {
+                                                foreach ($parameterOptionField as $keyField => $field) {
+                                                    $option->$keyField = $field;
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -5546,7 +5791,16 @@ class CbsController extends Controller
             $cbs = CB::whereIn('cb_key', $cbsKeys)
                 ->with([
                     'votes',
-                    'configurations'
+                    'configurations',
+                    'operationSchedules' => function($q) {
+                        $q
+                            ->where("active","=","1")
+                            ->where(function($q) {
+                                $q
+                                    ->whereDate("start_date",">",Carbon::now())
+                                    ->orWhereDate("end_date","<",Carbon::now());
+                            });
+                    }
                 ])->whereHas('topics')->get();
 
             $cbsIds = [];
@@ -5595,9 +5849,40 @@ class CbsController extends Controller
                 $parameterTrans = [];
                 foreach($topicsCollection as $key => $topic){
                     $cbKey = $cbs->where('id', $topic->cb_id)->first()->cb_key;
+
+                    $cb = $cb->where('id', $topic->cb_id)->first();
+                    $operationSchedules = array();
+                    $operationTypes = OperationType::all();
+                    $operationActions = OperationAction::all();
+                    foreach ($operationTypes as $operationType) {
+                        $operationSchedules[$operationType->code] = array();
+
+                        foreach ($operationActions as $operationAction) {
+                            $cbOperationSchedule = $cb->operationSchedules->where("operation_type_id",$operationType->id)->where("operation_action_id",$operationAction->id);
+                            $operationSchedules[$operationType->code][$operationAction->code] = $cbOperationSchedule->isEmpty();
+                        }
+                    }
+
+                    $dynamicOperations = $cb->operationSchedules()
+                        ->where('operation_type_id', null)
+                        ->where('operation_action_id', null)
+                        ->where('active', 1)
+                        ->get();
+
+                    if ($dynamicOperations){
+                        foreach ($dynamicOperations as $dynamicOperation){
+                            if ($dynamicOperation->start_date <= Carbon::now() && $dynamicOperation->end_date >= Carbon::now()){
+                                $operationSchedules[$dynamicOperation->type_code][$dynamicOperation->action_code] = true;
+                            } else {
+                                $operationSchedules[$dynamicOperation->type_code][$dynamicOperation->action_code] = false;
+                            }
+                        }
+                    }
+
                     $topic->type = isset($cbsTypes[$cbKey]) ? $cbsTypes[$cbKey] : '';
                     $topic->cbKey = $cbKey;
                     $topic->configurations = $cbs->where('id', $topic->cb_id)->first()->configurations;
+                    $topic->operationSchedules = $operationSchedules;
 
                     $topic->status = $topic->status->first();
                     if(!empty($topic->status)){
@@ -5607,8 +5892,8 @@ class CbsController extends Controller
                     $validation = json_decode($topic->_cached_data);
                     if (isset($validation->parameters) && !empty($parameters = $validation->parameters)) {
                         foreach ($parameters as $parameter) {
-                            if (!empty($parameterTrans[$parameter->id])) {
-                                $parameter->parameter =   $parameterTrans[$parameter->id]['parameter'];
+                            if (!empty($parameter->id) && !empty($parameterTrans[$parameter->id])) {
+                                $parameter->parameter = $parameterTrans[$parameter->id]['parameter'];
                                 $parameter->description =  $parameterTrans[$parameter->id]['description'];
                             } else {
                                 $langCode = $request->header('LANG-CODE');
@@ -5616,9 +5901,11 @@ class CbsController extends Controller
                                 if (!isset($parameter->translations->$langCode)) {
                                     if (!isset($parameter->translations->$langCodeDefault)) {
                                         $firstTranslationFound = collect($parameter->translations)->first();
-                                        $parameter->parameter =  $firstTranslationFound->parameter;
-                                        $parameter->description =  $firstTranslationFound->description;
-                                    } else {
+                                        if(!is_null($firstTranslationFound) && !empty($firstTranslationFound)){
+                                            $parameter->parameter =  $firstTranslationFound->parameter;
+                                            $parameter->description =  $firstTranslationFound->description;
+                                        }
+                                    } else {                                        
                                         $parameter->parameter =  $parameter->translations->$langCodeDefault->parameter;
                                         $parameter->description =  $parameter->translations->$langCodeDefault->description;
                                     }
@@ -5626,10 +5913,12 @@ class CbsController extends Controller
                                     $parameter->parameter =  $parameter->translations->$langCode->parameter;
                                     $parameter->description =  $parameter->translations->$langCode->description;
                                 }
-                                $parameterTrans[$parameter->id] = ['parameter' => $parameter->parameter, 'description' => $parameter->description];
+                                if(!empty($parameter->id))
+                                    $parameterTrans[$parameter->id] = ['parameter' => $parameter->parameter, 'description' => $parameter->description];
 
                             }
-                            if (!empty($options = $parameter->options)) {
+                            if (!empty($parameter->options)) {
+                                $options = $parameter->options;
                                 foreach ($options as $option) {
                                     if (!empty($option)) {
                                         $langCode = $request->header('LANG-CODE');
@@ -6018,7 +6307,7 @@ class CbsController extends Controller
     {
         try {
             $cb = CB::whereCbKey($cbKey)->firstOrFail();
-            $topics = $cb->topics()->get();
+            $topics = $cb->topics()->with("activeStatus.statusType")->get();
             return response()->json(['data' => $topics]);
         }catch (Exception $e){
             return response()->json(['exception' => $e->getMessage(), 'e-line' => $e->getLine()], 500);
@@ -6029,64 +6318,103 @@ class CbsController extends Controller
         $userKey = ONE::verifyToken($request);
 
         try {
-            $questionKey = $request->get("question");
-            $parameterId = $request->get("parameter");
+            $questionKeys = $request->get("questions");
+            $parameterIds = $request->get("parameters");
             $passedStatusKey = $request->get("passed");
             $failedStatusKey = $request->get("failed");
             $simulate = $request->get("simulate",true);
 
             $cb = CB::whereCbKey($cbKey)->firstOrFail();
-            $question = TechnicalAnalysisQuestion::whereTechAnalysisQuestionKey($questionKey)->first();
-            $parameter = Parameter::whereId($parameterId)->first();
-            $passedStatus = StatusType::whereStatusTypeKey($passedStatusKey)->first();
-            $failedStatus = StatusType::whereStatusTypeKey($failedStatusKey)->first();
+            if (!empty($questionKeys) && !empty($parameterIds)) {
+                $questions = TechnicalAnalysisQuestion::whereIn("tech_analysis_question_key",$questionKeys)->get()->keyBy("tech_analysis_question_key");
+                $parameters = Parameter::whereIn("id",$parameterIds)->get()->keyBy("id");
+            } else {
+                $questions = collect([]);
+                $parameters = collect([]);
+            }
+
+            if (!empty($passedStatusKey))
+                $passedStatus = StatusType::whereStatusTypeKey($passedStatusKey)->first();
+            else
+                $passedStatus = null;
+
+            if (!empty($failedStatusKey))
+                $failedStatus = StatusType::whereStatusTypeKey($failedStatusKey)->first();
+            else
+                $failedStatus = null;
 
             $data = array();
-            if (!empty($questionKey) && empty($question))
+            if (!empty($questionKeys) && $questions->isEmpty())
                 $data["errors"][] = "questionNotDefined";
-            if (!empty($parameterId) && empty($parameter))
+            if (!empty($parameterIds) && $parameters->isEmpty())
                 $data["errors"][] = "parameterNotDefined";
             if (!empty($passedStatusKey) && empty($passedStatus))
                 $data["errors"][] = "passedStatusNotDefined";
             if (!empty($failedStatusKey) && empty($failedStatus))
                 $data["errors"][] = "failedStatusNotDefined";
 
+
             if (!isset($data["errors"])) {
+                $questionParameter = array();
+                foreach ($questionKeys as $questionIndex=>$questionKey) {
+                    $questionParameter[$questionKey] = $parameterIds[$questionIndex];
+                }
+                $parameterQuestion = array();
+                foreach ($parameterIds as $parameterIndex=>$parameterId) {
+                    $parameterQuestion[$parameterId] = $questionKeys[$parameterIndex];
+                }
+
                 /* Check If there are technical analysis where the question is empty counts */
-                $question->translation($request->header('LANG-CODE'));
-                $baseQuestionAnswersQuery = $question
-                    ->technicalAnalysisQuestionAnswers()
-                    ->whereHas("technicalAnalysis", function ($q) {
-                        $q->where("active", "=", 1);
-                    })
-                    ->where(function ($q) {
-                        $q->where("value", "=", "")->orWhereNull("value");
-                    });
-                $data["data"]["question"] = array(
-                    "question" => $question,
-                    "empty" => $baseQuestionAnswersQuery->where(function ($q) {
-                        $q->where("value", "=", "")->orWhereNull("value");
-                    })->count(),
-                    "nonempty" => $baseQuestionAnswersQuery->where(function ($q) {
-                        $q->where("value", "!=", "")->orWhereNotNull("value");
-                    })->count(),
-                );
+                $data["data"]["questions"] = array();
+                foreach ($questionKeys as $questionIndex => $questionKey) {
+                    $currentQuestion = $questions[$questionKey];
+
+                    $currentQuestion->translation($request->header('LANG-CODE'));
+                    $baseQuestionAnswersQuery = $currentQuestion
+                        ->technicalAnalysisQuestionAnswers()
+                        ->whereHas("technicalAnalysis", function ($q) {
+                            $q->where("active", "=", 1);
+                        })
+                        ->where(function ($q) {
+                            $q->where("value", "=", "")->orWhereNull("value");
+                        });
+
+                    $data["data"]["questions"][$questionIndex] = array(
+                        "question" => $currentQuestion,
+                        "empty" => $baseQuestionAnswersQuery->where(function ($q) {
+                            $q->where("value", "=", "")->orWhereNull("value");
+                        })->count(),
+                        "nonempty" => $baseQuestionAnswersQuery->where(function ($q) {
+                            $q->where("value", "!=", "")->orWhereNotNull("value");
+                        })->count(),
+                        "parameter" => $questionParameter[$questionKey]
+                    );
+                }
 
                 /* Check If there are Topics with the Parameter filled */
-                $baseParametersQuery = $parameter->topics();
-                $data["data"]["parameter"] = array(
-                    "parameter" => $parameter,
-                    "empty" => $baseParametersQuery->where(function ($q) {
-                        $q->where("value", "=", "")->orWhereNull("value");
-                    })->count(),
-                    "nonempty" => $baseParametersQuery->where(function ($q) {
-                        $q->where("value", "!=", "")->orWhereNotNull("value");
-                    })->count(),
-                );
+                $data["data"]["parameters"] = array();
+                foreach ($parameterIds as $parameterIndex => $parameterId) {
+                    $currentParameter = $parameters[$parameterId];
+
+                    $currentParameter->translation($request->header('LANG-CODE'));
+                    $baseParametersQuery = $currentParameter->topics();
+                    $data["data"]["parameters"][$parameterIndex] = array(
+                        "parameter" => $currentParameter,
+                        "empty" => $baseParametersQuery->where(function ($q) {
+                            $q->where("value", "=", "")->orWhereNull("value");
+                        })->count(),
+                        "nonempty" => $baseParametersQuery->where(function ($q) {
+                            $q->where("value", "!=", "")->orWhereNotNull("value");
+                        })->count(),
+                        "question" => $parameterQuestion[$parameterId]
+                    );
+                }
 
                 /* Get Passed Status and Topics Info */
-                $passedStatus->translation($request->header('LANG-CODE'));
-                $passingTopicsIds = TechnicalAnalysis::whereDecision("1")->whereHas("topic", function ($q) use ($cb) {
+                if (!empty($passedStatus))
+                    $passedStatus->translation($request->header('LANG-CODE'));
+
+                $passingTopicsIds = TechnicalAnalysis::whereDecision(1)->whereActive(1)->whereHas("topic", function ($q) use ($cb) {
                     $q->where("cb_id", "=", $cb->id);
                 })->pluck("topic_id");
                 $data["data"]["passing"] = array(
@@ -6095,14 +6423,22 @@ class CbsController extends Controller
                 );
 
                 /* Get Failed Status and Topics Info */
-                $failedStatus->translation($request->header('LANG-CODE'));
-                $failingTopicsIds = TechnicalAnalysis::whereDecision("0")->whereHas("topic", function ($q) use ($cb) {
+                if (!empty($failedStatus))
+                    $failedStatus->translation($request->header('LANG-CODE'));
+
+                $failingTopicsIds = TechnicalAnalysis::whereDecision(-1)->whereActive(1)->whereHas("topic", function ($q) use ($cb) {
                     $q->where("cb_id", "=", $cb->id);
                 })->pluck("topic_id");
                 $data["data"]["failing"] = array(
                     "status" => $failedStatus,
                     "topics" => Topic::whereIn("id", $failingTopicsIds)->get()
                 );
+
+                /* Get Topics without Analysis decision */
+                $withoutDecisionTopicsIds = TechnicalAnalysis::whereDecision(0)->whereActive(1)->whereHas("topic", function ($q) use ($cb) {
+                    $q->where("cb_id", "=", $cb->id);
+                })->pluck("topic_id");
+                $data["data"]["noDecision"] = Topic::whereIn("id", $withoutDecisionTopicsIds)->get();
 
                 /* Get Topics without Analysis */
                 $data["data"]["noAnalysis"] = $cb->topics()->whereDoesntHave("technicalAnalysis")->get();
@@ -6127,204 +6463,215 @@ class CbsController extends Controller
                     );
 
                     /* Change the data for Passing Topics */
-                    $passingTopics = $data["data"]["passing"]["topics"]->load([
-                        "topicVersions",
-                        "status",
-                        "technicalAnalysis" => function($q) {
-                            $q->where("active","=","1")->with("technicalAnalysisQuestionsAnswers");
-                        }
-                    ]);
-                    foreach ($passingTopics as $topic) {
-                        try {
-                            $activeVersion = null;
-                            $lastVersionIndex = 0;
-                            foreach ($topic->topicVersions as $topicVersion) {
-                                /* Get the active version */
-                                if ($topicVersion->active == 1)
-                                    $activeVersion = $topicVersion;
-
-                                /* Get the bigger version index */
-                                if ($topicVersion->version > $lastVersionIndex)
-                                    $lastVersionIndex = $topicVersion->version;
-
-                                /* Deactivate version, since the new one is going to be the active one */
-                                $topicVersion->active = 0;
-                                $topicVersion->active_by = null;
-                                $topicVersion->save();
+                    if (!empty($data["data"]["passing"]["topics"])) {
+                        $passingTopics = $data["data"]["passing"]["topics"]->load([
+                            "topicVersions",
+                            "status",
+                            "technicalAnalysis" => function($q) {
+                                $q->where("active","=","1")->with("technicalAnalysisQuestionsAnswers");
                             }
+                        ]);
+                        foreach ($passingTopics as $topic) {
+                            try {
+                                $activeVersion = null;
+                                $lastVersionIndex = 0;
+                                foreach ($topic->topicVersions as $topicVersion) {
+                                    /* Get the active version */
+                                    if ($topicVersion->active == 1)
+                                        $activeVersion = $topicVersion;
 
-                            /* If there isn't an active version, grab the last one */
-                            if (empty($activeVersion))
-                                $activeVersion = $topic->topicVersions->last();
+                                    /* Get the bigger version index */
+                                    if ($topicVersion->version > $lastVersionIndex)
+                                        $lastVersionIndex = $topicVersion->version;
 
-                            if (!empty($activeVersion)) {
-                                /* Create new Topic Version */
-                                $newTopicVersion = $topic->topicVersions()->create([
-                                    "version" => $lastVersionIndex + 1,
-                                    "active" => 1,
-                                    "title" => $activeVersion->title,
-                                    "contents" => $activeVersion->contents,
-                                    "summary" => !empty($activeVersion->summary) ? $activeVersion->summary : null,
-                                    "description" => !empty($activeVersion->description) ? $activeVersion->description : null,
-                                    "created_by" => $userKey,
-                                    "active_by" => $userKey
-                                ]);
-
-                                /* Duplicate the version parameters */
-                                $activeVersion->load("topicParameters");
-
-                                $newTopicParameters = [];
-                                foreach ($activeVersion->topicParameters as $topicParameter) {
-                                    $newTopicParameters[$topicParameter->parameter_id] = array(
-                                        "topic_id" => $topic->id,
-                                        "topic_version_id" => $newTopicVersion->id,
-                                        "version" => 1,
-                                        "value" => $topicParameter->value ?? null
-                                    );
+                                    /* Deactivate version, since the new one is going to be the active one */
+                                    $topicVersion->active = 0;
+                                    $topicVersion->active_by = null;
+                                    $topicVersion->save();
                                 }
 
-                                /* Populate the Public Description parameter */
-                                $technicalAnalysisPublicDescription = $topic->technicalAnalysis->first()
-                                    ->technicalAnalysisQuestionsAnswers
-                                    ->where("technical_analysis_question_id", $question->id)
-                                    ->first();
+                                /* If there isn't an active version, grab the last one */
+                                if (empty($activeVersion))
+                                    $activeVersion = $topic->topicVersions->last();
 
-                                $newTopicParameters[$parameter->id] = array(
-                                    "topic_id" => $topic->id,
-                                    "topic_version_id" => $newTopicVersion->id,
-                                    "version" => 1,
-                                    "value" => $technicalAnalysisPublicDescription->value ?? null
-                                );
+                                if (!empty($activeVersion)) {
+                                    /* Create new Topic Version */
+                                    $newTopicVersion = $topic->topicVersions()->create([
+                                        "version" => $lastVersionIndex + 1,
+                                        "active" => 1,
+                                        "title" => $activeVersion->title,
+                                        "contents" => $activeVersion->contents,
+                                        "summary" => !empty($activeVersion->summary) ? $activeVersion->summary : null,
+                                        "description" => !empty($activeVersion->description) ? $activeVersion->description : null,
+                                        "created_by" => $userKey,
+                                        "active_by" => $userKey
+                                    ]);
 
-                                $topic->parameters()->attach($newTopicParameters);
+                                    /* Duplicate the version parameters */
+                                    $activeVersion->load("topicParameters");
 
-                                /* Update the topic Status */
-                                Status::whereTopicId($topic->id)->update(['active' => 0]);
-                                do {
-                                    $rand = str_random(32);
-                                    if (!($exists = Status::whereStatusKey($rand)->exists())) {
-                                        $key = $rand;
+                                    $newTopicParameters = [];
+                                    foreach ($activeVersion->topicParameters as $topicParameter) {
+                                        $newTopicParameters[$topicParameter->parameter_id] = array(
+                                            "topic_id" => $topic->id,
+                                            "topic_version_id" => $newTopicVersion->id,
+                                            "version" => 1,
+                                            "value" => $topicParameter->value ?? null
+                                        );
                                     }
-                                } while ($exists);
-                                $topic->status()->create([
-                                    'status_key' => $key,
-                                    'status_type_id' => $passedStatus->id,
-                                    'active' => 1,
-                                    'created_by' => $userKey
-                                ]);
 
-                                /* Update topic parameters Cache */
-                                $topicsController->updateTopicParametersCache($topic->topic_key,$newTopicVersion);
+                                    /* Populate the Public Description parameter */
+                                    $technicalAnalysisPublicDescriptions = $topic->technicalAnalysis->first()
+                                        ->technicalAnalysisQuestionsAnswers
+                                        ->whereIn("technical_analysis_question_id", $questions->pluck("id"))
+                                        ->keyBy("technical_analysis_question_id");
 
-                                $data["result"]["passing"]["count"]++;
-                                $data["result"]["passing"]["topics"][] = $topic;
-                            } else {
+                                    foreach ($data["data"]["questions"] as $question) {
+                                        $newTopicParameters[$question["parameter"]] = array(
+                                            "topic_id" => $topic->id,
+                                            "topic_version_id" => $newTopicVersion->id,
+                                            "version" => 1,
+                                            "value" => $technicalAnalysisPublicDescriptions[$question["question"]->id]->value ?? null
+                                        );
+                                    }
+
+                                    $topic->parameters()->attach($newTopicParameters);
+
+                                    /* Update the topic Status */
+                                    if (!empty($passedStatus)) {
+                                        Status::whereTopicId($topic->id)->update(['active' => 0]);
+                                        do {
+                                            $rand = str_random(32);
+                                            if (!($exists = Status::whereStatusKey($rand)->exists())) {
+                                                $key = $rand;
+                                            }
+                                        } while ($exists);
+                                        $topic->status()->create([
+                                            'status_key' => $key,
+                                            'status_type_id' => $passedStatus->id,
+                                            'active' => 1,
+                                            'created_by' => $userKey
+                                        ]);
+                                    }
+
+                                    /* Update topic parameters Cache */
+                                    $topicsController->updateTopicParametersCache($topic->topic_key,$newTopicVersion);
+
+                                    $data["result"]["passing"]["count"]++;
+                                    $data["result"]["passing"]["topics"][] = $topic;
+                                } else {
+                                    $data["result"]["passing"]["failure"][] = $topic;
+                                }
+                            } catch (Exception $e) {
                                 $data["result"]["passing"]["failure"][] = $topic;
+                                $data["result"]["passing"]["errors"][$topic->topic_key] = $e->getMessage();
                             }
-                        } catch (Exception $e) {
-                            $data["result"]["passing"]["failure"][] = $topic;
-                            $data["result"]["passing"]["errors"][$topic->topic_key] = $e->getMessage();
                         }
                     }
 
                     /* Change the data for Failing Topics */
-                    $failingTopics = $data["data"]["failing"]["topics"]->load([
-                        "topicVersions",
-                        "status",
-                        "technicalAnalysis" => function($q) {
-                            $q->where("active","=","1")->with("technicalAnalysisQuestionsAnswers");
-                        }
-                    ]);
-                    foreach ($failingTopics as $topic) {
-                        try {
-                            $activeVersion = null;
-                            $lastVersionIndex = 0;
-                            foreach ($topic->topicVersions as $topicVersion) {
-                                /* Get the active version */
-                                if ($topicVersion->active == 1)
-                                    $activeVersion = $topicVersion;
-
-                                /* Get the bigger version index */
-                                if ($topicVersion->version > $lastVersionIndex)
-                                    $lastVersionIndex = $topicVersion->version;
-
-                                /* Deactivate version, since the new one is going to be the active one */
-                                $topicVersion->active = 0;
-                                $topicVersion->active_by = null;
-                                $topicVersion->save();
+                    if (!empty($data["data"]["failing"]["topics"])) {
+                        $failingTopics = $data["data"]["failing"]["topics"]->load([
+                            "topicVersions",
+                            "status",
+                            "technicalAnalysis" => function($q) {
+                                $q->where("active","=","1")->with("technicalAnalysisQuestionsAnswers");
                             }
+                        ]);
+                        foreach ($failingTopics as $topic) {
+                            try {
+                                $activeVersion = null;
+                                $lastVersionIndex = 0;
+                                foreach ($topic->topicVersions as $topicVersion) {
+                                    /* Get the active version */
+                                    if ($topicVersion->active == 1)
+                                        $activeVersion = $topicVersion;
 
-                            /* If there isn't an active version, grab the last one */
-                            if (empty($activeVersion))
-                                $activeVersion = $topic->topicVersions->last();
+                                    /* Get the bigger version index */
+                                    if ($topicVersion->version > $lastVersionIndex)
+                                        $lastVersionIndex = $topicVersion->version;
 
-                            if (!empty($activeVersion)) {
-                                /* Create new Topic Version */
-                                $newTopicVersion = $topic->topicVersions()->create([
-                                    "version" => $lastVersionIndex + 1,
-                                    "active" => 1,
-                                    "title" => $activeVersion->title,
-                                    "contents" => $activeVersion->contents,
-                                    "summary" => !empty($activeVersion->summary) ? $activeVersion->summary : null,
-                                    "description" => !empty($activeVersion->description) ? $activeVersion->description : null,
-                                    "created_by" => $userKey,
-                                    "active_by" => $userKey
-                                ]);
-
-                                /* Duplicate the version parameters */
-                                $activeVersion->load("topicParameters");
-
-                                $newTopicParameters = [];
-                                foreach ($activeVersion->topicParameters as $topicParameter) {
-                                    $newTopicParameters[$topicParameter->parameter_id] = array(
-                                        "topic_id" => $topic->id,
-                                        "topic_version_id" => $newTopicVersion->id,
-                                        "version" => 1,
-                                        "value" => $topicParameter->value ?? null
-                                    );
+                                    /* Deactivate version, since the new one is going to be the active one */
+                                    $topicVersion->active = 0;
+                                    $topicVersion->active_by = null;
+                                    $topicVersion->save();
                                 }
 
-                                /* Populate the Public Description parameter */
-                                $technicalAnalysisPublicDescription = $topic->technicalAnalysis->first()
-                                    ->technicalAnalysisQuestionsAnswers
-                                    ->where("technical_analysis_question_id", $question->id)
-                                    ->first();
+                                /* If there isn't an active version, grab the last one */
+                                if (empty($activeVersion))
+                                    $activeVersion = $topic->topicVersions->last();
 
-                                $newTopicParameters[$parameter->id] = array(
-                                    "topic_id" => $topic->id,
-                                    "topic_version_id" => $newTopicVersion->id,
-                                    "version" => 1,
-                                    "value" => $technicalAnalysisPublicDescription->value ?? null
-                                );
+                                if (!empty($activeVersion)) {
+                                    /* Create new Topic Version */
+                                    $newTopicVersion = $topic->topicVersions()->create([
+                                        "version" => $lastVersionIndex + 1,
+                                        "active" => 1,
+                                        "title" => $activeVersion->title,
+                                        "contents" => $activeVersion->contents,
+                                        "summary" => !empty($activeVersion->summary) ? $activeVersion->summary : null,
+                                        "description" => !empty($activeVersion->description) ? $activeVersion->description : null,
+                                        "created_by" => $userKey,
+                                        "active_by" => $userKey
+                                    ]);
 
-                                $topic->parameters()->attach($newTopicParameters);
+                                    /* Duplicate the version parameters */
+                                    $activeVersion->load("topicParameters");
 
-                                /* Update the topic Status */
-                                Status::whereTopicId($topic->id)->update(['active' => 0]);
-                                do {
-                                    $rand = str_random(32);
-                                    if (!($exists = Status::whereStatusKey($rand)->exists())) {
-                                        $key = $rand;
+                                    $newTopicParameters = [];
+                                    foreach ($activeVersion->topicParameters as $topicParameter) {
+                                        $newTopicParameters[$topicParameter->parameter_id] = array(
+                                            "topic_id" => $topic->id,
+                                            "topic_version_id" => $newTopicVersion->id,
+                                            "version" => 1,
+                                            "value" => $topicParameter->value ?? null
+                                        );
                                     }
-                                } while ($exists);
-                                $topic->status()->create([
-                                    'status_key' => $key,
-                                    'status_type_id' => $failedStatus->id,
-                                    'active' => 1,
-                                    'created_by' => $userKey
-                                ]);
+                                    /* Populate the Public Description parameter */
+                                    $technicalAnalysisPublicDescriptions = $topic->technicalAnalysis->first()
+                                        ->technicalAnalysisQuestionsAnswers
+                                        ->whereIn("technical_analysis_question_id", $questions->pluck("id"))
+                                        ->keyBy("technical_analysis_question_id");
 
-                                /* Update topic parameters Cache */
-                                $topicsController->updateTopicParametersCache($topic->topic_key,$newTopicVersion);
+                                    foreach ($data["data"]["questions"] as $question) {
+                                        $newTopicParameters[$question["parameter"]] = array(
+                                            "topic_id" => $topic->id,
+                                            "topic_version_id" => $newTopicVersion->id,
+                                            "version" => 1,
+                                            "value" => $technicalAnalysisPublicDescriptions[$question["question"]->id]->value ?? null
+                                        );
+                                    }
 
-                                $data["result"]["failing"]["count"]++;
-                                $data["result"]["failing"]["topics"][] = $topic;
-                            } else {
+                                    $newTopicVersion->topicParametersPivot()->attach($newTopicParameters);
+
+                                    /* Update the topic Status */
+                                    if (!empty($failedStatus)) {
+                                        Status::whereTopicId($topic->id)->update(['active' => 0]);
+                                        do {
+                                            $rand = str_random(32);
+                                            if (!($exists = Status::whereStatusKey($rand)->exists())) {
+                                                $key = $rand;
+                                            }
+                                        } while ($exists);
+                                        $topic->status()->create([
+                                            'status_key' => $key,
+                                            'status_type_id' => $failedStatus->id,
+                                            'active' => 1,
+                                            'created_by' => $userKey
+                                        ]);
+                                    }
+
+                                    /* Update topic parameters Cache */
+                                    $topicsController->updateTopicParametersCache($topic->topic_key,$newTopicVersion);
+
+                                    $data["result"]["failing"]["count"]++;
+                                    $data["result"]["failing"]["topics"][] = $topic;
+                                } else {
+                                    $data["result"]["failing"]["failure"][] = $topic;
+                                }
+                            } catch (Exception $e) {
                                 $data["result"]["failing"]["failure"][] = $topic;
+                                $data["result"]["failing"]["errors"][$topic->topic_key] = $e->getMessage();
                             }
-                        } catch (Exception $e) {
-                            $data["result"]["failing"]["failure"][] = $topic;
-                            $data["result"]["failing"]["errors"][$topic->topic_key] = $e->getMessage();
                         }
                     }
                 }
@@ -6333,6 +6680,463 @@ class CbsController extends Controller
             return response()->json($data);
         } catch (Exception $e) {
             return response()->json(['error' => 'Failed to Publish Technical Analysis results'], 500);
+        }
+    }
+
+
+    /**
+     * return if the user can perform a
+     * specific action in a PAD
+     * @param $cbKey
+     * @param $operationCode
+     * @param $request
+     * @param null $operationKey
+     * @return bool
+     */
+    public static function checkIfUserIsAllowedToPerformThisActionByLoginLevels($cbKey, $operationCode, $request, $operationKey = null)
+    {
+        $actionPermissionsArray = CbsController::getPadActionsThatRequireLoginLevelsAccordingToUser($request,$cbKey)->getData();
+        $actionPermissionsArray = $actionPermissionsArray->data;
+
+        if(isset($operationKey) && isset($actionPermissionsArray->$operationCode->$operationKey->allowed) && !$actionPermissionsArray->$operationCode->$operationKey->allowed) {
+            return false;
+        }else{
+            if (isset($actionPermissionsArray->$operationCode->allowed) && !$actionPermissionsArray->$operationCode->allowed) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * this function returns the actions that require login levels attached
+     * to the sent pad and also the parameters that each require
+     * @param Request $request
+     * @param $cbKey
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public static function getPadActionsThatRequireLoginLevelsAccordingToUser(Request $request, $cbKey)
+    {
+        try{
+            $cb = Cb::whereCbKey($cbKey)->firstOrFail();
+            $entity = Entity::whereEntityKey($request->json('entity_key') ?? $request->header('X-ENTITY-KEY'))->firstOrFail();
+            $languageCode = $request->json('language_code') ?? $request->header('LANG-CODE');
+
+            try {
+                $userKey = $request->json('user_key') ?? ONE::verifyToken($request);
+            } catch(Exception $e) {
+                $userKey = "anonymous";
+            }
+
+            //GET ALL THE DEFINED LOGIN LEVELS FOR THE CURRENT ENTITY WITH THE PARAMETERS
+            $loginLevelParameters = $entity->loginLevels()->with('parameters.parameterUserType.parameterUserTypeTranslations')->get()->keyBy('login_level_key');
+
+            //GET THE USER LOGIN LEVELS
+            $user = OrchUser::whereUserKey($userKey)->first();
+            if (!empty($user))
+                $userLoginLevels = UserLoginLevel::where('user_id','=', $user->id)->with('loginLevel.parameters.parameterUserType')->get();
+            else
+                $userLoginLevels = collect([]);
+
+            //GET LOGIN LEVELS BY ACTION
+            $actionsByPad = $cb->cb_ConfigurationsPermission()->get();
+
+            //GET LOGIN LEVELS BY PAD VOTE EVENT
+            $loginLevelsByCbVotes = Vote::getAllEventLevelsByCbKey($cbKey);
+
+            //DEAL WITH PAD ACTIONS
+            if(!empty($actionsByPad)) {
+                foreach ($actionsByPad as $action) {
+                    if (!empty($action->pivot->value)) {
+                        $actionLoginLevels = json_decode($action->pivot->value);
+                        if (!is_null($actionLoginLevels)) {
+                            foreach ($actionLoginLevels as $loginLevelKey) {
+                                $actions[$action->code][] = $loginLevelKey;
+                            }
+                        }
+                    }
+                }
+            }
+
+            //DEAL WITH VOTE ACTIONS
+            if(!empty($loginLevelsByCbVotes)){
+                foreach ($loginLevelsByCbVotes as $voteKey => $loginLevelByCbVote){
+                    $voteLoginLevels = json_decode($loginLevelByCbVote);
+                    foreach($voteLoginLevels as $loginLevelKey) {
+                        $voteActions[$voteKey][] = $loginLevelKey;
+                    }
+                }
+                $actions['vote'] = $voteActions;
+            }
+            $padActions = [];
+            $allMissingLevels = [];
+            $userLoginLevelKeys = collect($userLoginLevels)->pluck('loginLevel.login_level_key')->toArray();
+            foreach($actions ?? [] as $actionCode => $actionLoginLevels){
+                $deletedFailSafe = [];
+                if($actionCode != strtolower('vote')) {
+                    $padActions[$actionCode]['allowed'] = true;
+                    $missingUserLoginLevelsForAction = array_diff($actionLoginLevels, $userLoginLevelKeys);
+                    if (!empty($missingUserLoginLevelsForAction)) {
+                        foreach($missingUserLoginLevelsForAction as $key => $missingLevel){
+                            if(LoginLevel::whereLoginLevelKey($missingLevel)->first()) {
+                                $allMissingLevels[] = $missingLevel;
+                                $padActions[$actionCode]['allowed'] = false;
+                            }else{
+                                $deletedFailSafe[] = $missingLevel;
+                            }
+                        }
+                        $padActions[$actionCode]['missingLevels'] = array_diff($missingUserLoginLevelsForAction,$deletedFailSafe);
+                    }
+                }else{
+                    foreach($actionLoginLevels as $voteEventKey => $loginLevelsForVoting){
+                        $allowed = true;
+                        $padActions[$actionCode][$voteEventKey] =  ['allowed' => $allowed,'missingLevels' => []];
+                        $missingUserLoginLevelsForAction = array_diff($loginLevelsForVoting, $userLoginLevelKeys);
+                        if (!empty($missingUserLoginLevelsForAction)) {
+                            foreach($missingUserLoginLevelsForAction as $key => $missingLevel){
+                                if(LoginLevel::whereLoginLevelKey($missingLevel)->exists()) {
+                                    $allMissingLevels[] = $missingLevel;
+                                    $allowed = false;
+                                }else{
+                                    $deletedFailSafe[] = $missingLevel;
+                                }
+                            }
+                            $padActions[$actionCode][$voteEventKey] = ['allowed' => $allowed, 'missingLevels' => array_diff($missingUserLoginLevelsForAction,$deletedFailSafe)];
+                        }
+                    }
+                }
+            }
+            $userToTest = User::whereUserKey($userKey)->with('userParameters')->first();
+            if (!empty($userToTest))
+                $userParameters = $userToTest->userParameters()->whereNotNull('value')->whereNotIn('value',[''])->get()->pluck('parameter_user_key')->toArray();
+            else
+                $userParameters = [];
+
+            foreach(array_unique($allMissingLevels) as $level){
+                $missingParametersToCompleteLevels[$level] = $loginLevelParameters->isEmpty()
+                    ? []
+                    : CbsController::getUserMissingParametersToCompleteLevel(collect($loginLevelParameters)->where('login_level_key','=',$level)->first(),$userParameters,$userToTest,$languageCode);
+            }
+
+            foreach($padActions as $actionCode => &$action){
+                if($actionCode == strtolower('vote')) {
+                    foreach($action as $voteEventKey  => &$loginLevelsForVoting){
+                        if (isset($loginLevelsForVoting['missingLevels'])) {
+                            foreach ($loginLevelsForVoting['missingLevels'] as $missingLevel) {
+                                if (isset($missingParametersToCompleteLevels[$missingLevel])) {
+                                    $loginLevelsForVoting['missingAttributesPerLevel'][$missingLevel] = $missingParametersToCompleteLevels[$missingLevel];
+                                }
+                            }
+                        }
+                    }
+                }else {
+                    if (isset($action['missingLevels'])) {
+                        foreach ($action['missingLevels'] as $missingLevel) {
+                            if (isset($missingParametersToCompleteLevels[$missingLevel])) {
+                                $action['missingAttributesPerLevel'][$missingLevel] = $missingParametersToCompleteLevels[$missingLevel];
+                            }
+                        }
+                    }
+                }
+            }
+
+            return response()->json(['data' => $padActions],200);
+        }catch(Exception $e){
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+
+    }
+
+
+    /**
+     * this function validates if a user needs to have specific
+     * login levels to vote in a PAD vote event
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public static function checkIfUserHasAllLoginLevelsToVote(Request $request)
+    {
+        try{
+            $eventKey = $request->json('event_key');
+
+            $cbVote = CbVote::whereVoteKey($eventKey)->firstOrFail();
+
+            $cb = Cb::whereId($cbVote->cb_id)->firstOrFail();
+
+            if (!CbsController::checkIfUserIsAllowedToPerformThisActionByLoginLevels($cb->cb_key, 'vote', $request,$eventKey)) {
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
+
+            return response()->json(['success' => 'Authorized'], 200);
+
+        }catch(Exception $e){
+            return response()->json(['error' => 'Failed to retrieve the vote actions that require login levels'], 500);
+        }
+
+    }
+
+
+    /**
+     * build the list of  the user missing
+     * parameters by login level
+     * @param $loginLevel
+     * @param $userParameters
+     * @param $userToTest
+     * @param $languageCode
+     * @return array
+     */
+    public static function getUserMissingParametersToCompleteLevel($loginLevel, $userParameters, $userToTest, $languageCode)
+    {
+        $loginLevelParameters = collect($loginLevel->parameters)->pluck('parameterUserType.parameter_user_type_key')->toArray();
+
+        $userHasMobileNumberConfirmed = empty($userToTest['sms_token']);
+        $userHasEmailConfirmed = empty($userToTest['confirmation_code']);
+
+        $parameters = [];
+
+        $missingParameters = array_diff($loginLevelParameters, $userParameters);
+
+        $buildParameters = ParameterUserType::whereIn('parameter_user_type_key',$missingParameters)->with([
+            'parameterUserTypeTranslations' => function ($q) use ($languageCode){
+                $q->where('language_code', '=', $languageCode);
+            },
+        ])->get();
+
+
+        foreach($buildParameters as $buildParameter){
+            $parameters[$buildParameter->parameter_user_type_key] = $buildParameter->parameterUserTypeTranslations->first()->name;
+        }
+
+        if($loginLevel->sms_verification){
+
+            if(!$userHasMobileNumberConfirmed){
+                $parameters['mobile_number_confirmed'] = false;
+            }
+        }
+
+        if($loginLevel->email_verification){
+            if(!$userHasEmailConfirmed){
+                $parameters['email_confirmed'] = false;
+            }
+        }
+
+        return $parameters;
+    }
+
+    public function entityVoteEvents(Request $request) {
+        try {
+            $entity = ONE::getEntity($request);
+            $entityVoteEvents = array();
+            $entity->load("entityCbs.cb.votes");
+            foreach ($entity->entityCbs as $entityCb) {
+                foreach ($entityCb->cb->votes as $voteEvent) {
+                    $entityVoteEvents[$voteEvent->vote_key] = array(
+                        "name" => $voteEvent->name,
+                        "vote_key" => $voteEvent->vote_key
+                    );
+                }
+            }
+
+            return response()->json($entityVoteEvents,200);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to get Entity Vote Events'], 500);
+        }
+    }
+
+    public function getCbVoteConfigurations(Request $request, $voteKey) {
+        try{
+            $cbVote = CbVote::whereVoteKey($voteKey)->first();
+            $cbVoteConfigurations = $cbVote->voteConfigurations()->get();
+
+            return response()->json($cbVoteConfigurations);
+        } catch (Exception $e) {
+            return response()->json(["error" => $e->getMessage()],500);
+        }
+    }
+
+    public function getTopicsKeysForVoteEvents(Request $request) {
+        try{
+            $voteKeys = $request->get("voteKeys");
+
+            $topicKeys = Topic::whereHas("cb",function($query) use ($voteKeys) {
+                $query->whereHas("votes",function($query) use ($voteKeys) {
+                    $query->whereIn("vote_key",$voteKeys);
+                });
+            })->pluck("topic_key");
+
+            return response()->json($topicKeys);
+        } catch (Exception $e) {
+            return response()->json(["error" => $e->getMessage()],500);
+        }
+    }
+
+    public function exportVotesCountToParameter(Request $request, $cbKey) {
+        ONE::verifyToken($request);
+
+        try {
+            $parameterId = $request->get("parameter_id");
+            $eventKey = $request->get("event_key");
+
+            $cb = Cb::with([
+                "topics.topicVersions.topicParametersPivot" => function ($q) use ($parameterId) {
+                    $q->where("id","=",$parameterId);
+                }
+            ])->whereCbKey($cbKey)->firstOrFail();
+            $parameter = $cb->parameters()->findOrFail($parameterId);
+            $event = $cb->votes()->whereVoteKey($eventKey)->firstOrFail();
+
+            $voteEventCounts = Vote::getVoteResults($event->vote_key);
+
+            $topicsController = new TopicsController();
+
+            foreach ($cb->topics as $topic) {
+                $topicVotesCount = $voteEventCounts->total_summary->{ $topic->topic_key }->positive ?? 0;
+
+                $versionToUse = $topic->topicVersions->where("active","=",1)->first();
+                if (empty($versionToUse))
+                    $versionToUse = $topic->topicVersions->last();
+
+                $votesCountParameter = $versionToUse->topicParametersPivot->where("id","=",$parameterId)->first();
+                if (!empty($votesCountParameter)) {
+                    $votesCountParameter->pivot->value = $topicVotesCount;
+                    $votesCountParameter->pivot->save();
+                } else {
+                    $topic->parameters()->attach($parameterId, [
+                        'topic_version_id' => $versionToUse->id,
+                        'value' => $topicVotesCount
+                    ]);
+                }
+
+                $topicsController->updateTopicParametersCache($topic->topic_key, $versionToUse);
+            }
+
+            return response()->json(['success' => true]);
+        } catch(Exception $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getActivePads(Request $request){
+
+        try{
+
+            $entity = ONE::getEntity($request);
+
+            $cbs = $entity
+                ->entityCbs()
+                ->whereHas("cb", function($q){
+                    $q
+                        ->where(function($q) {
+                            $q
+                                ->whereDate('start_date','<=', Carbon::now()->addMonth());
+                        })
+                        ->where(function($q) {
+                            $q
+                                ->whereDate('end_date','>=', Carbon::now()->subMonth())
+                                ->orWhereNull('end_date');
+                        });
+                })
+                ->take(10)
+                ->with("cb","cbType")
+                ->get();
+
+
+            $data = [];
+            foreach($cbs as $cb){
+
+                $cbData["cbKey"] = $cb->cb->cb_key;
+                $cbData["cbTitle"] = $cb->cb->title;
+                $cbData["cbType"] = $cb->cbType->code;
+
+                $data[] = $cbData;
+            }
+
+            return response()->json(['data' => $data], 200);
+
+        } catch(Exception $e){
+            dd($e);
+            return response()->json(['error' => 'CB not Found'], 404);
+        }
+    }
+
+    public function getPad(Request $request, $cbKey)
+    {
+
+        try {
+            //ADD QUESTIONNAIRES WHEN NEEDED
+            $cb = Cb::whereCbKey($cbKey)
+                ->with([
+                    'votes.voteConfigurations',
+                    'configurations',
+                    'operationSchedules' => function($q){
+                        $q->where('active', '=', 1);
+                    },
+                    'childs',
+
+                ])->firstOrFail();
+
+
+            return response()->json(['data' => $cb], 200);
+
+        } catch (Exception $e) {
+            return response()->json(['errors' => $e->getMessage()], 500);
+        } catch (\Throwable $t) {
+            return response()->json(['errors' => $t->getMessage()], 500);
+        }
+    }
+
+
+    public function getPadTopics(Request $request, $cbKey)
+    {
+
+        try {
+            ONE::verifyLogin($request);
+
+            //FETCH THE PAD
+            $query = Cb::whereCbKey($cbKey)->firstOrFail();
+
+            //RUN THE QUERY TO GET THE TOPICS
+            $query = $query->topics()->with('status.statusType.statusTypeTranslations')->whereNotNull("_cached_data")
+                ->whereRaw('topics.id in (select topic_id from status where active = 1 AND (status_type_id = ? OR status_type_id = ? OR status_type_id = ? OR status_type_id = ?) )',
+                    [
+                        !is_null(StatusType::whereCode('not_accepted')->first()) ? StatusType::whereCode('not_accepted')->first()->id : null,
+                        !is_null(StatusType::whereCode('approved')->first()) ? StatusType::whereCode('approved')->first()->id : null,
+                        !is_null(StatusType::whereCode('moderated')->first()) ? StatusType::whereCode('moderated')->first()->id : null,
+                        !is_null(StatusType::whereCode('excluded')->first()) ? StatusType::whereCode('excluded')->first()->id : null
+                    ]);
+            //FETCH THE OBJECTS
+            $topics = $query->get();
+            if(!$topics->isEmpty()) {
+                $users = User::whereIn('user_key', $topics->pluck('created_by')->unique()->toArray())->get()->keyBy('user_key')->toArray();
+            }
+            foreach($topics as $topic){
+                $topic->owner = !empty($users[$topic->created_by]) ? $users[$topic->created_by]['name'] : null;
+            }
+
+            return response()->json(['data' => $topics], 200);
+
+        } catch (Exception $e) {
+            return response()->json(['errors' => $e->getMessage()], 500);
+        } catch (\Throwable $t) {
+            return response()->json(['errors' => $t->getMessage()], 500);
+        }
+    }
+
+    public function getCbFilters(Request $request){
+        try{
+            $cbKey = $request->cbKey;
+            $cb = Cb::whereCbKey($cbKey)->firstOrFail();
+            if(!empty($cb->filters)) {
+                $cbFilters = json_decode($cb->filters);
+            }else{
+                $cbFilters = [];
+            }
+            return response()->json(['data' => $cbFilters], 200);
+
+        }catch(Exception $e){
+            dd($e->getMessage(),$e->getLine());
+            return response()->json(['error' => 'CB filters not Found'], 404);
         }
     }
 }

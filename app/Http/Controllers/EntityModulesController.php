@@ -217,12 +217,18 @@ class EntityModulesController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
-    public function setModuleTypeForCurrentEntity(Request $request) {
+    public function setModuleTypeForEntity(Request $request) {
         try {
             $moduleKey = $request->get("moduleKey");
             $moduleTypeKey = $request->get("moduleTypeKey");
+                        
+            if(isset($request->entityKey)){
+                $entity = Entity::whereEntityKey($request->entityKey)->first();
+            }
+            else{
+                $entity = ONE::getEntity($request);
+            }
 
-            $entity = ONE::getEntity($request);
             $module = Module::whereModuleKey($moduleKey)->firstOrFail();
             $moduleType = ModuleType::whereModuleTypeKey($moduleTypeKey)->firstOrFail();
 

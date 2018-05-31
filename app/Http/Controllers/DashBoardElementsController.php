@@ -331,6 +331,9 @@ class DashBoardElementsController extends Controller
         try{
             $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->firstOrFail();
             $entityCb = EntityCb::with('cbType')->whereEntityId($entity->id)->first();
+            if(empty($entityCb)){
+                return null;
+            }
             $cbType = CbType::find($entityCb->cb_type_id);
             $cb = CB::whereCbKey($entityCb->cb_key)->with('configurations')->firstOrFail();
             $cb->type = $cbType->code;

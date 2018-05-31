@@ -191,11 +191,12 @@ class LoginLevelsController extends Controller
             }else{
                 $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->firstOrFail();
             }
-            $loginLevelParameters = $entity->loginLevels()->get()->keyBy('login_level_key');
+            $loginLevelParameters = $entity->loginLevels()->with('parameters.parameterUserType.parameterUserTypeTranslations')->get()->keyBy('login_level_key');
 // ->with('parameterUserTypes')
 
             return response()->json(['data' => $loginLevelParameters], 200);
         } catch (Exception $e) {
+            dd($e);
             return response()->json(['error' => 'Failed to retrieve the Login Levels'], 500);
         }
     }

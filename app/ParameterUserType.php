@@ -14,7 +14,7 @@ class ParameterUserType extends Model
      *
      * @var array
      */
-    protected $fillable = ['parameter_user_type_key', 'code','parameter_type_id', 'mandatory','parameter_unique', 'level_parameter_id'];
+    protected $fillable = ['parameter_user_type_key', 'code','parameter_type_id', 'mandatory','parameter_unique', 'anonymizable','level_parameter_id','vote_in_person','external_validation'];
 
     /**
      * The attributes that should be mutated to dates.
@@ -111,5 +111,9 @@ class ParameterUserType extends Model
     public function newTranslation($language = null, $languageDefault = null) {
         $translation = $this->hasMany('App\ParameterUserTypeTranslation')->orderByRaw("FIELD(language_code,'".$languageDefault."','".$language."')DESC")->first();
         $this->setAttribute('name',$translation->name ?? null);
+    }
+
+    public function userParameters() {
+        return $this->hasMany("App\UserParameter","parameter_user_type_key","parameter_user_type_key");
     }
 }

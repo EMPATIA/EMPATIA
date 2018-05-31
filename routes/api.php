@@ -54,9 +54,11 @@ Route::group(['middleware' => ['authOne']], function () {
     Route::put('entity/{entityKey}/manualUpdateTopicVotesInfo', 'EntitiesController@manualUpdateTopicVotesInfo');
     Route::get('entity/getListOfAvailableUsersToSendEmails', 'EntitiesController@getListOfAvailableUsersToSendEmails');
     Route::get('entity/getEntityRegistrationValues', 'EntitiesController@getEntityRegistrationValues');
+    Route::get('entity/getVatNumbers', 'EntitiesController@getVatNumbers');
     Route::get('entity/getEntityStatistics', 'EntitiesController@getEntityStatistics');
     Route::post('entity/importRegistrationFields', 'EntitiesController@importRegistrationFields');
     Route::post('entity/deleteRegistrationValues', 'EntitiesController@deleteRegistrationValues');
+    Route::post('entity/deleteAllRegistrationValues', 'EntitiesController@deleteAllRegistrationValues');
     /** -----------------------------------------------------------
      *  {END} Routes to deal with the entity registration values
      * ------------------------------------------------------------
@@ -96,6 +98,7 @@ Route::group(['middleware' => ['authOne']], function () {
     Route::get('entity/addManager/{user_key}', 'EntitiesController@addManager');
     Route::put('entity/defaultLanguage', 'EntitiesController@defaultLanguage');
     Route::get('entity/validateUsers', 'EntitiesController@getUsersAwaitingValidation');
+    Route::get('entity/entityVoteEvents', 'CbsController@entityVoteEvents');
     Route::resource('entity', 'EntitiesController', ['only' => ['show', 'store', 'update', 'destroy']]);
 
     /**
@@ -144,6 +147,8 @@ Route::group(['middleware' => ['authOne']], function () {
     /**
      * Route for the requests of User Model
      */
+    Route::delete("users/anonymize",'OrchUsersController@storeUserAnonymizationRequest');
+    Route::post('user/topicsCount', 'TopicsController@userTopicsCount');
     Route::get('user/userEmail', 'OrchUsersController@getUserEmail');
     Route::post('user/managersList', 'OrchUsersController@listAllManagers');
     Route::get('user/listrole', 'OrchUsersController@listRole');
@@ -305,6 +310,13 @@ Route::group(['middleware' => ['authOne']], function () {
     Route::get('role/list', 'RolesController@index');
     Route::resource('role', 'RolesController', ['only' => ['show', 'store', 'update', 'destroy']]);
 
+    
+    Route::get('translation/list', 'TranslationController@index');
+    Route::post('translation/uploadFileTranslation', 'TranslationController@uploadFileTranslation');
+    Route::get('translation/getTranslation', 'TranslationController@getTranslation');
+    Route::delete('translation/deleteLines', 'TranslationController@deleteLines');
+    Route::resource('translation', 'TranslationController');
+
     /**
      * Route for the requests of Permissions
      */
@@ -353,6 +365,11 @@ Route::group(['middleware' => ['authOne']], function () {
     Route::get('cbTypes/cb/{cb_key}', 'CbTypesController@getTypeByCb');
     Route::post('cbTypes/cb', 'CbTypesController@getTypesByCbKeys');
 
+    /**
+     * Route for the requests of  Cbs Check list
+     */
+    Route::get('CbChecklists/list', 'CbChecklistsController@index');
+    Route::resource('CbChecklists', 'CbChecklistsController');
 
     /**
      * Route for the requests of Home Page Types
@@ -402,7 +419,7 @@ Route::group(['middleware' => ['authOne']], function () {
      */
     Route::get('entityModule/moduleCode', 'EntityModulesController@getSidebarMenu');
     Route::get('entityModule/{entity_key}', 'EntityModulesController@getActiveEntityModules');
-    Route::post('entityModule/setModuleTypeForCurrentEntity', 'EntityModulesController@setModuleTypeForCurrentEntity');
+    Route::post('entityModule/setModuleTypeForEntity', 'EntityModulesController@setModuleTypeForEntity');
     Route::resource('entityModule', 'EntityModulesController', ['only' => ['show', 'store', 'update', 'destroy']]);
 
     /**
@@ -466,6 +483,7 @@ Route::group(['middleware' => ['authOne']], function () {
     Route::get('message/list', 'MessageController@index');
     Route::get('message/messagesFrom/{user_key}', 'MessageController@messagesFrom');
     Route::get('message/{message_key}/viewed', 'MessageController@viewed');
+    Route::get('message/showMessage', 'MessageController@showMessage');
     Route::get('message/usersWithMessages2', 'MessageController@usersWithMessages2');
     Route::get('message/usersWithMessages', 'MessageController@usersWithMessages');
     Route::post('message/markAsSeen', 'MessageController@markAsSeen');
@@ -678,7 +696,7 @@ Route::group(['middleware' => ['authOne']], function () {
     Route::get('newContent/{contentKey}/{version?}', 'NewContentController@show');
     Route::post('newContent/{contentKey}/{version}/status', 'NewContentController@toggleActiveStatusOfVersion');
     Route::get('publicNewContent/{contentType}', 'NewContentController@publicIndex');
-    Route::get('publicNewContent/{contentType}/{contentKey}', 'NewContentController@publicShow');
+    Route::get('publicNewContent/{contentKey}', 'NewContentController@publicShow');
     Route::post('publicNewContentCode', 'NewContentController@codeShow');
     Route::get('publicNewContentPreview/{contentCode}/{contentVersion}', 'NewContentController@previewShow');
     Route::resource('newContent', 'NewContentController', ['only' => ['store', 'update', 'destroy']]);
@@ -702,20 +720,26 @@ Route::group(['middleware' => ['authOne']], function () {
 
 Route::group(['middleware' => ['authOne']], function () {
 
+
+    Route::post('cb/{cb_key}/getPad', 'CbsController@getPad');
+    Route::post('cb/{cb_key}/getPadTopics', 'CbsController@getPadTopics');
+    Route::get('cb/getActivePads', 'CbsController@getActivePads');
     Route::post('cb/{cb_key}/getTopicsbyVotes', 'CbsController@getTopicsbyVotes');
     Route::post('cb/{cb_key}/publishTechnicalAnalysisResults', 'CbsController@publishTechnicalAnalysisResults');
+    Route::post("cb/{cbKey}/exportVotesCountToParameter","CbsController@exportVotesCountToParameter");
     Route::get('cb/verifyTemplate', 'CbsController@verifyTemplate');
     Route::post('cb/cbTemplate', 'CbsController@setCbTemplate');
     Route::get('cb/getCbTemplates', 'CbsController@getCbTemplates');
     Route::post('cb/getParticipationInformationForDataTable', 'CbsController@getParticipationInformationForDataTable');
     Route::post('cb/getParticipationInformation', 'CbsController@getParticipationInformation');
-
+    Route::post('cb/checkIfUserHasAllLoginLevelsToVote', 'CbsController@checkIfUserHasAllLoginLevelsToVote');
     Route::post('cb/{cb_key}/exportTopics', 'CbsController@exportTopics');
     Route::get('cb/{cb_key}/getDataToExport/', 'CbsController@getDataToExport');
     Route::get('cb/{cb_key}/getCbTopicAuthors/', 'CbsController@getCbTopicAuthors');
     Route::get('cb/{cb_key}/getTopicsByCbKey', 'CbsController@getTopicsByCbKey');
     Route::get('cb/exportProposalsToProjects','CbsController@exportProposalsToProjects');
     Route::get('cb/{cb_key}/getCbWithFlags', 'CbsController@getCbWithFlags');
+    Route::get('cb/getCbFilters', 'CbsController@getCbFilters');
     Route::get('cb/abuses/', 'CbsController@listAllAbuses');
     Route::get('cb/list/', 'CbsController@index');
 
@@ -746,6 +770,7 @@ Route::group(['middleware' => ['authOne']], function () {
     Route::get('cb/{cb_key}/topicsWithFirstPost/', 'CbsController@topicsWithFirstPost');
     Route::get('cb/{cb_key}/topicsWithLastPost/', 'CbsController@topicsWithLastPost');
     Route::get('cb/{cb_key}/getAllTopics/', 'CbsController@getAllTopics');
+    Route::get('cb/{cb_key}/getTopicsList/', 'CbsController@getTopicsList');
     Route::get('cb/{cb_key}/topicsWithParameters/', 'CbsController@topicsWithParameters');
     Route::get('cb/{cb_key}/topicsKey/', 'CbsController@topicsKey');
     Route::get('cb/{cb_key}/topicsWithBasicData', 'CbsController@getTopicsWithBasicData');
@@ -757,8 +782,10 @@ Route::group(['middleware' => ['authOne']], function () {
     Route::get('cb/{cb_key}/parameters', 'CbsController@parameters');
     Route::post('cb/{cb_key}/parameters', 'CbsController@setParameters');
     Route::delete('cb/{cb_key}/parameters/{parameter_id}', 'CbsController@removeParameters');
-    Route::post('cb/{cb_key}/options', 'CbsController@setOptions');
     Route::get('cb/{cb_key}/options', 'CbsController@options');
+    Route::post('cb/{cb_key}/options', 'CbsController@setOptions');
+    Route::get('cb/{cb_key}/getPadActionsThatRequireLoginLevelsAccordingToUser', 'CbsController@getPadActionsThatRequireLoginLevelsAccordingToUser');
+    Route::get('user/{user_key}/userLoginLevelsVotes', 'OrchUsersController@userLoginLevelsVotes');
     Route::get('cb/{cb_key}/getAllUserTopics', 'CbsController@getAllUserTopics');   //TODO - work in progress
     Route::get('cb/{cb_key}/getAllUserFollowingTopics', 'CbsController@getAllUserFollowingTopics');   //TODO - work in progress
     Route::post('cb/{cb_key}/getWithPagination', 'CbsController@getWithPagination');
@@ -786,6 +813,7 @@ Route::group(['middleware' => ['authOne']], function () {
 
 
     /** ------------------ Routes for topic cbs ------------------ */
+    Route::post('topic/{topic_key}/getTopic', 'TopicsController@getTopic');
     Route::post('topic/{topic_key}/addTopicCb', 'TopicsController@addTopicCb');
     Route::get('topic/{topic_key}/getTopicCbs', 'TopicsController@getTopicCbs');
     Route::delete('topic/{topic_key}/deleteTopicCb/{cb_key}', 'TopicsController@deleteTopicCb');
@@ -809,6 +837,8 @@ Route::group(['middleware' => ['authOne']], function () {
     Route::get('topic/{topic_key}/permissions', 'TopicsController@cooperatorPermissions');
     Route::get('topic/cooperators', 'TopicsController@getCooperators');
     Route::get('topic/cooperators/list', 'TopicsController@getCooperatorsList');
+    Route::get('topic/cooperators/verifyCoopToken/{token}', 'TopicsController@verifyCoopToken');
+    Route::put('topic/updateCoopStatus', 'TopicsController@updateCoopStatus');
     Route::post('topic/topicsWithModeration/', 'TopicsController@topicsWithModeration');
     Route::post('topic/topicsWithModeration/', 'TopicsController@topicsWithModeration');
     Route::post('topic/topicsWithTechnicalEvaluation/', 'TopicsController@topicsWithTechnicalEvaluation');
@@ -856,6 +886,8 @@ Route::group(['middleware' => ['authOne']], function () {
     Route::get('post/{post_key}/filesByType/list/{type_id?}', 'PostsController@filesByType');
     Route::post('post/getTopicsFiles', 'PostsController@getTopicsFiles');
     Route::get('post/{post_key}/files/{file_id}', 'PostsController@getFile');
+    Route::put('post/{post_key}/updateFiles', 'PostsController@updateFiles');
+    Route::post('post/{post_key}/addFiles', 'PostsController@addFiles');
     Route::post('post/{post_key}/files', 'PostsController@addFile');
     Route::match(['PUT', 'PATCH'], 'post/{post_id}/files/{file_id}', 'PostsController@updateFile');
     Route::delete('post/{post_key}/files/{file_id}', 'PostsController@deleteFile');
@@ -1136,6 +1168,7 @@ Route::group(['middleware' => ['authOne']], function () {
     Route::get('user/{user_key}/loginLevels', 'OrchUsersController@loginLevels');
     Route::get('user/{user_key}/userLoginLevels', 'OrchUsersController@userLoginLevels');
     Route::get('user/{user_key}/userLoginLevelsVotes', 'OrchUsersController@userLoginLevelsVotes');
+    Route::post('user/updateStatusLoginLevel', 'OrchUsersController@updateStatusLoginLevel');
     Route::post('user/{user_key}/smsCheckLoginLevel', 'OrchUsersController@smsCheckLoginLevel');
     Route::post('user/{user_key}/manualCheckLoginLevel', 'OrchUsersController@manualCheckLoginLevel');
     Route::post('user/autoCheckLoginLevel', 'OrchUsersController@autoCheckLoginLevel');
@@ -1183,6 +1216,7 @@ Route::group(['middleware' => ['authOne']], function () {
     |
     */
     Route::post('flags/getElementFlagHistory', 'FlagsController@getElementFlagHistory');
+    Route::post('flags/toggleActiveStatus', 'FlagsController@toggleActiveStatus');
     Route::post('flags/attachFlag', 'FlagsController@attachFlag');
     Route::get('flags/{cbKey}/getFlagsFromCb', 'FlagsController@getFlagsFromCb');
     Route::resource('flags', 'FlagsController',['only' => ['show', 'store', 'update', 'destroy']]);
@@ -1257,6 +1291,14 @@ Route::group(['middleware' => ['authOne']], function () {
 
     /***** Entity Messages ******/
     Route::get('entityMessages/getEntityMessages', 'EntityMessagesController@getEntityMessages');
+    Route::get('entityMessages/getEntitySentMessages', 'EntityMessagesController@getEntitySentMessages');
+    Route::get('entityMessages/getSentMessages', 'EntityMessagesController@getSentMessages');
+    Route::get('entityMessages/getReceivedMessages', 'EntityMessagesController@getReceivedMessages');
+    Route::get('entityMessages/getEntityReceivedMessages', 'EntityMessagesController@getEntityReceivedMessages');
+    Route::get('entityMessages/getReceivedMessages', 'EntityMessagesController@getReceivedMessages');
+    Route::get('entityMessages/countEntitySentMessages', 'EntityMessagesController@countEntitySentMessages');
+    Route::get('entityMessages/countEntityReceivedMessages', 'EntityMessagesController@countEntityReceivedMessages');
+
     Route::resource('entityMessages', 'EntityMessagesController',['only' => ['index']]);
 
 
@@ -1288,15 +1330,34 @@ Route::group(['middleware' => ['authOne']], function () {
     Route::resource('operationActions', 'OperationActionController', ['only' => ['index', 'show', 'store', 'update', 'destroy']]);
 
     /* Cb Operation Schedule routes */
+    Route::get('cbOperationSchedules/operationSchedules/{cbKey}', 'CbOperationScheduleController@operationSchedules');
     Route::get('cbOperationSchedules/getCbSchedules/{cbKey}', 'CbOperationScheduleController@getCbSchedules');
-
     Route::post('cbOperationSchedules/verifyScheduleExternal', 'CbOperationScheduleController@verifyScheduleExternal');
-
     Route::resource('cbOperationSchedules', 'CbOperationScheduleController', ['only' => ['show', 'store', 'update', 'destroy']]);
-    
-    
+
     /* Short Links */
     Route::get('shortLinks/list', 'ShortLinksController@index');
     Route::get('shortLinks/resolve/{shortLinkCode}', 'ShortLinksController@resolve');
     Route::resource('shortLinks', 'ShortLinksController', ['only' => ['show', 'store', 'update', 'destroy']]);
+
+    /* SMS Vote Methods */
+    Route::post("smsVote","SMSVoteController@index");
+    Route::post("smsVote/getSMSConfigurations","SMSVoteController@getSMSConfigurations");    
+
+    /* Get CB Vote Event configurations */
+    Route::post("vote/getTopicsKeysForVoteEvents","CbsController@getTopicsKeysForVoteEvents");
+    Route::get("vote/{eventKey}","CbsController@getCbVoteConfigurations");
+
+    /**
+     * Route for the requests of Permissions
+     */
+    Route::get('allPermissions/updateGroupPermission', 'PermsController@updateGroupPermission');
+    Route::get('allPermissions/permissions', 'PermsController@index');
+    Route::get('allPermissions/entityGroupsPermissions', 'PermsController@groups');
+    Route::get('allPermissions/userPermission', 'PermsController@allUserPermission');
+    Route::get('allPermissions/cbPermissions', 'PermsController@getCbPermissions');
+    Route::get('allPermissions/updateCbPermissions', 'PermsController@updateCbPermissions');
+    Route::get('allPermissions/userCbPermissions', 'PermsController@getUserCBsPermissions');
+    Route::get('allPermissions/cbs', 'PermsController@getUserCBs');
+    Route::resource('allPermissions', 'PermsController',['only' => ['update']]);
 });

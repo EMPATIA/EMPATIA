@@ -33,12 +33,6 @@ class CreateAuthMethodsTable extends Migration
 
         });
 
-
-        $authMethods = array(
-            array('id' => '1',	'auth_method_key' => 'KEb2ubskrl8EYHT5UD0ADBuL7iZuOpdG',	'name' => 'Empatia Authentication Method',	'description' => 'Authentication Method of Empatia',	'code' => 'auth_empatia',	'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-            array('id' => '2',	'auth_method_key' => 'KSYBafkbC6jmi44OPwp9vD1gu7rlYciD',	'name' => 'Facebook Login',					'description' => 'Login with Facebook',					'code' => 'facebook',		'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL)
-        );
-        DB::table('auth_methods')->insert($authMethods);
     }
 
     /**

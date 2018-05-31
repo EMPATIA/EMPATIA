@@ -184,6 +184,7 @@ return [
         Barryvdh\LaravelIdeHelper\IdeHelperServiceProvider::class,
         App\Providers\ONEServiceProvider::class,
         Vinelab\Http\HttpServiceProvider::class,
+        ArtemSchander\L5Modular\ModuleServiceProvider::class,
 
         /*Swaggervel*/
         Jlapp\Swaggervel\SwaggervelServiceProvider::class,

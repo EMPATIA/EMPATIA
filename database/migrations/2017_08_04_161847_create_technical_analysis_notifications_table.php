@@ -30,6 +30,6 @@ class CreateTechnicalAnalysisNotificationsTable extends Migration
      */
     public function down()
     {
-        //
+        Schema::dropIfExists('technical_analysis_notifications');
     }
 }

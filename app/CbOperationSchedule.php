@@ -14,11 +14,14 @@ class CbOperationSchedule extends Model
      *
      * @var array
      */
+
     protected $fillable = [
         'cb_operation_schedule_key',
         'cb_id',
         'operation_type_id',
         'operation_action_id',
+        'type_code',
+        'action_code',
         'active',
         'start_date',
         'end_date'

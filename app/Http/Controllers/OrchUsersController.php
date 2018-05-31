@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\ComModules\Auth;
+use App\ComModules\Notify;
 use App\Entity;
 use App\EntityDomainName;
 use App\EntityGroup;
@@ -33,6 +34,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
 
 use Illuminate\Support\Collection;
+use App\UserAnonymization;
+use App\UserAnonymizationRequest;
 
 /**
  * Class UsersController
@@ -101,10 +104,16 @@ class OrchUsersController extends Controller
                     return response()->json(["data" => $admins], 200);
                 } /*List of all managers*/
                 elseif ($request->json('role') == $this->roles["MANAGER"]) {
-
-                    $entity = Entity::with(['users' => function ($query) {
-                        $query->whereRole($this->roles["MANAGER"]);
-                    }])->whereEntityKey($request->header('X-ENTITY-KEY'))->first();
+                    if(!empty($request->entityKey)){
+                        $entity = Entity::with(['users' => function ($query) {
+                            $query->whereRole($this->roles["MANAGER"]);
+                        }])->whereEntityKey($request->entityKey)->first();
+                    }
+                    else{
+                        $entity = Entity::with(['users' => function ($query) {
+                            $query->whereRole($this->roles["MANAGER"]);
+                        }])->whereEntityKey($request->header('X-ENTITY-KEY'))->first();
+                    }
                     if (empty($entity)) {
                         $entity = Entity::with(['users' => function ($query) {
                             $query->whereRole($this->roles["MANAGER"]);
@@ -273,6 +282,11 @@ class OrchUsersController extends Controller
 
             if (empty($entity)) {
                 $user = OrchUser::whereUserKey($userKey)->firstOrFail();
+                if($user->admin){
+                    $user['moderated'] = true;
+                }else{
+                    $user['moderated'] = false;
+                }
                 return response()->json($user, 200);
             } else {
                 $sites = $entity->sites()->get();
@@ -405,7 +419,11 @@ class OrchUsersController extends Controller
      */
     public function store(Request $request)
     {
-        ONE::verifyKeysRequest($this->keysRequired, $request);
+        if(env("DEMO_MODE",false)!=true){
+            ONE::verifyKeysRequest($this->keysRequired, $request);
+        }
+
+        \Log::info(">>>> ERROR: 0a");
 
         try {
             $entity = ONE::getEntity($request);
@@ -413,14 +431,31 @@ class OrchUsersController extends Controller
                 return response()->json(['error' => 'Entity not found'], 404);
             }
 
+            \Log::info(">>>> ERROR: 0");
+
+    	    $emailTags["name"] = (User::whereUserKey($request->get("user_key"))->first()->name??"");
+
+            \Log::info(">>>> ERROR: 0b");
             if ($request->has('geographic_area_key')) {
                 $geographicArea = GeographicArea::whereGeoKey($request->json('geographic_area_key'))->first();
                 $geographicAreaId = $geographicArea->id ?? null;
             } else
                 $geographicAreaId = null;
 
+
+            \Log::info(">>>> ERROR: 1");
+
             if (!empty($request->json('role'))) {
-                $userKey = ONE::verifyToken($request);
+
+                \Log::info(">>>> ERROR: 2");
+
+                if(env("DEMO_MODE",false)!=true){
+                    $userKey = ONE::verifyToken($request);
+                }
+                else{
+                    $userKey = $request->user_key;
+                }
+
                 if ($request->json('role') === $this->roles["ADMIN"] && OrchUser::verifyRole($userKey, $this->roles["ADMIN"])) {
                     $user = OrchUser::firstOrCreate(['user_key' => $request->json('user_key')]);
                     $user->admin = 1;
@@ -428,9 +463,12 @@ class OrchUsersController extends Controller
                     $user->save();
 
                     //Sends Notification Emails to the selected groups of users
-                    ONE::sendNotificationEmail($request,'new_user_registration');
+                    ONE::sendNotificationEmail($request,'new_user_registration',$emailTags);
                     return response()->json($user, 201);
-                } elseif ((($request->json('role') === $this->roles["MANAGER"]) || ($request->json('role') === $this->roles["USER"])) && OrchUser::verifyRole($userKey, $this->roles["ADMIN"])) {
+                } elseif (($request->json('role') === $this->roles["MANAGER"] || $request->json('role') === $this->roles["USER"]) && OrchUser::verifyRole($userKey, $this->roles["MANAGER"], $entity->id) || env("DEMO_MODE",false)!=false) {
+
+                    \Log::info(">>>> ERROR: 2a");
+
 
                     if (OrchUser::whereUserKey($request->json("user_key"))->exists()) {
                         $user = OrchUser::whereUserKey($request->json("user_key"))->first();
@@ -447,10 +485,13 @@ class OrchUsersController extends Controller
                         $user->entities()->attach($entity->id, ['role' => $request->json('role')]);
 
                     //Sends Notification Emails to the selected groups of users
-                    ONE::sendNotificationEmail($request,'new_user_registration');
+                    ONE::sendNotificationEmail($request,'new_user_registration',$emailTags);
                     return response()->json($user, 201);
 
                 } elseif (($request->json('role') === $this->roles["MANAGER"] || $request->json('role') === $this->roles["USER"]) && OrchUser::verifyRole($userKey, $this->roles["MANAGER"], $entity->id)) {
+
+                    \Log::info(">>>> ERROR: 2b");
+
                     if (OrchUser::whereUserKey($request->json("user_key"))->exists()){
                         $user = OrchUser::whereUserKey($request->json("user_key"))->first();
 
@@ -468,12 +509,15 @@ class OrchUsersController extends Controller
                         $user->entities()->attach($entity->id, ['role' => $request->json('role')]);
 
                     //Sends Notification Emails to the selected groups of users
-                    ONE::sendNotificationEmail($request,'new_user_registration');
+                    ONE::sendNotificationEmail($request,'new_user_registration',$emailTags);
 
                     return response()->json($user, 201);
                 }
 
             } else {
+
+                \Log::info(">>>> ERROR: 3");
+
 
                 if (!empty($request->header('X-ENTITY-KEY'))) {
                     $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->firstOrFail();
@@ -485,7 +529,7 @@ class OrchUsersController extends Controller
                     $user->entities()->updateExistingPivot($entity->id, ['role' => $this->roles["USER"], 'status' => 'registered']);
 
                     //Sends Notification Emails to the selected groups of users
-                    ONE::sendNotificationEmail($request,'new_user_registration');
+                    ONE::sendNotificationEmail($request,'new_user_registration',$emailTags);
                     return response()->json($user, 201);
                 }
             }
@@ -744,13 +788,15 @@ class OrchUsersController extends Controller
             $user = $entity->users[0];
 
             if (OrchUser::verifyRole($userKey, $this->roles["ADMIN"])) {
-
+                $this->deleteUserParameters($entity,$user);
                 $user->entities()->detach($entity->id);
+                $user->delete();
                 return response()->json('Ok', 200);
 
             } elseif (OrchUser::verifyRole($userKey, $this->roles["MANAGER"], $entity->id)) {
-
+                $this->deleteUserParameters($entity,$user);
                 $user->entities()->detach($entity->id);
+                $user->delete();
                 return response()->json('Ok', 200);
 
             } elseif (OrchUser::verifyRole($userKey, $this->roles["USER"], $entity->id)) {
@@ -874,8 +920,11 @@ class OrchUsersController extends Controller
      */
     public function updateStatus(Request $request)
     {
-        $userKey = ONE::verifyToken($request);
-        ONE::verifyKeysRequest(['status'], $request);
+        if(env("DEMO_MODE",false)!=true){
+            $userKey = ONE::verifyToken($request);
+            ONE::verifyKeysRequest(['status'], $request);
+        }
+
         try {
             $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->firstOrFail();
             $user = is_null($request->json('user_key')) ? $entity->users()->whereUserKey($userKey)->firstOrFail() : $entity->users()->whereUserKey($request->json('user_key'))->firstOrFail();
@@ -1422,13 +1471,15 @@ class OrchUsersController extends Controller
         try {
             //get user with parameters
             $authUser = User::whereUserKey($user->user_key)->with('userParameters')->first();
+            $orchUser = OrchUser::whereUserKey($user->user_key)->firstOrFail();
             $userParameters = $authUser->userParameters;
             $userHasEmailConfirmed = $authUser->confirmed;
             $userHasSmsConfirmed = $authUser->sms_token == null ? true : false;
 
             //get all entity login levels with parameter user types
             $entityLoginLevels = $entity->loginLevels()->with('parameters')->get();
-
+            $userRelation = $entity->users()->where('user_id',$orchUser->id)->first();
+            $userIsModerated = ($userRelation->pivot->status == 'authorized');
             $loginLevelsCompleted = [];
             //verify all the entity login levels
             //TODO:improve double foreach
@@ -1463,7 +1514,7 @@ class OrchUsersController extends Controller
                         // verify if it's the last element and update the user login level
                         if ($parameter === $parameterUserTypes->last()) {
 
-                            if ((empty($loginLevel->email_verification) || $userHasEmailConfirmed) && (empty($loginLevel->sms_verification) || $userHasSmsConfirmed)){
+                            if ((empty($loginLevel->manual_verification) || $userIsModerated) && (empty($loginLevel->email_verification) || $userHasEmailConfirmed) && (empty($loginLevel->sms_verification) || $userHasSmsConfirmed)){
                                 $loginLevelsCompleted[] = $loginLevel->id;
                             }
 
@@ -1476,7 +1527,7 @@ class OrchUsersController extends Controller
 //                            }
                         }
                     }
-                } elseif (empty($loginLevel->manual_verification) && (empty($loginLevel->email_verification) || $userHasEmailConfirmed) && (empty($loginLevel->sms_verification) || $userHasSmsConfirmed)) {
+                } elseif ((empty($loginLevel->manual_verification) || $userIsModerated) && (empty($loginLevel->email_verification) || $userHasEmailConfirmed) && (empty($loginLevel->sms_verification) || $userHasSmsConfirmed)) {
                     $loginLevelsCompleted[] = $loginLevel->id;
 
 //                    if (empty($loginLevel->email_verification)) {
@@ -1556,7 +1607,6 @@ class OrchUsersController extends Controller
      * @return \Illuminate\Http\JsonResponse
      */
     public function autoCheckLoginLevel(Request $request){
-
         try{
             $userKeyAuth = ONE::verifyToken($request);
             $userKey = $request->json('user_key');
@@ -1637,8 +1687,6 @@ class OrchUsersController extends Controller
     }
 
 
-
-
     /** Check Login Level with SMS verification
      * @param Request $request
      * @param $userKey
@@ -1694,17 +1742,16 @@ class OrchUsersController extends Controller
             $user = OrchUser::whereUserKey($userKey)->firstOrFail();
             $completeUserLoginLevels = UserLoginLevel::where('user_id','=', $user->id)->with('loginLevel')->get();
             $userLoginLevels = $completeUserLoginLevels->pluck('loginLevel')->keyBy('login_level_key');
-
             foreach ($completeUserLoginLevels as $userLoginLevel){
                 $userLoginLevels[$userLoginLevel->loginLevel->login_level_key]->setAttribute('manual', $userLoginLevel->manual);
-                $userLoginLevels[$userLoginLevel->loginLevel->login_level_key]->created_by = User::whereUserKey($userLoginLevel->created_by)->first()->name;
+                $userLoginLevels[$userLoginLevel->loginLevel->login_level_key]->created_at = $userLoginLevel->created_at;
+                $userLoginLevels[$userLoginLevel->loginLevel->login_level_key]->created_by = User::whereUserKey($userLoginLevel->created_by)->first()->name ?? 'SYSTEM';
             }
-
             return response()->json(['data' => $userLoginLevels], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json(['error' => 'User not Found'], 404);
         } catch (Exception $e) {
-            return response()->json(['error' => 'Failed to retrieve User Login Levels'], 500);
+            return response()->json(['error' => 'Failed to retrieve User Login Levels '.$e->getMessage()], 500);
         }
     }
 
@@ -1995,7 +2042,7 @@ class OrchUsersController extends Controller
         return response()->json(['error' => 'Unauthorized'], 401);
     }
 
-    public function updateUserLoginLevels(Request $request)
+    public function updateUserLoginLevels(Request $request, $userKey)
     {
         try {
             $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->first();
@@ -2011,5 +2058,164 @@ class OrchUsersController extends Controller
             return response()->json(['error' => 'Failed to automatically update entity users login levels'], 500);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+
+    /**
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function updateStatusLoginLevel(Request $request){
+        try{
+            $userKey = ONE::verifyToken($request);
+            $user = OrchUser::with('entities')->whereUserKey($request->user_key)->firstOrFail();
+            $userAuth = User::whereUserKey($request->user_key)->firstOrFail();
+            $entity = $user->entities->where('entity_key', '=', $request->header('X-ENTITY-KEY'))->first();
+            if($entity) {
+                $entity->pivot->status = 'authorized';
+                $entity->pivot->save();
+                if($this->autoUpdateUserLoginLevels($user,$entity,$userKey)){
+                    $site = Site::where('key',$request->header('X-SITE-KEY'))->firstOrFail();
+
+                    $emailTemplate = Notify::getEmailTemplate($request->header('X-SITE-KEY'), 'account_authorized');
+                    $mails[] = $userAuth->email;
+                    $tags = [
+                        'name' => $userAuth->name,
+                    ];
+                    $response = Notify::sendEmailByTemplateKey($request, $site, $emailTemplate->email_template_key, $mails, $user->user_key, $tags);
+
+                    return response()->json(['success' => $response], 200);
+                }
+
+            }
+            return response()->json(['success' => false], 204);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to automatically update user login levels'], 500);
+        }
+    }
+
+
+    public function storeUserAnonymizationRequest(Request $request) {
+        try{
+            $currentUserKey = ONE::verifyToken($request);
+            $entity = One::getEntity($request);
+            
+            $userKeys = $request->get("userKeys");
+            if (empty($userKeys))
+                $userKeys = $entity->users()->whereRole("user")->pluck("user_key")->toArray();
+            
+            $pendingUserAnonymizationRequest = UserAnonymizationRequest::create([
+                'created_by' => $currentUserKey,
+                'entity_key' => $entity->entity_key,
+                'user_keys' => json_encode($userKeys)
+            ]);
+            
+            if(count($userKeys)==1) {
+                try {
+                    $this->processAnonymizationRequest($pendingUserAnonymizationRequest);
+                } catch(Exception $e) {}
+            }
+
+            return response()->json(["success" => true]);
+        } catch(Exception $e) {
+            return response()->json(["success" => false, "error" => $e->getMessage()],500);
+        }
+    }
+
+    static public function anonymizeUsers() {
+        try {
+            $pendingUserAnonymizationRequests = UserAnonymizationRequest::whereProcessStatus(0)->get();
+            
+            foreach ($pendingUserAnonymizationRequests as $pendingUserAnonymizationRequest) {
+                $this->processAnonymizationRequest($pendingUserAnonymizationRequest);
+            }
+        } catch (Exception $e) {
+            \Log::info("[USER-ANONYMIZATION] Error: ", $e);
+            dd($e);
+        }
+    }
+    private function processAnonymizationRequest(UserAnonymizationRequest $pendingUserAnonymizationRequest) {
+        $pendingUserAnonymizationRequest->load([
+            "entity.parameterUserTypes" => function($q) {
+                $q->where("anonymizable","=",1);
+            }]);
+
+        $userKeys = json_decode($pendingUserAnonymizationRequest->user_keys);
+        $anonymizableParameterKeys = $pendingUserAnonymizationRequest->entity->parameterUserTypes->pluck("parameter_user_type_key");
+        $entityKey = $pendingUserAnonymizationRequest->entity->entity_key;
+
+        /* Checks if it's not already being processed by another queue process */
+        if (UserAnonymizationRequest::whereId($pendingUserAnonymizationRequest->id)->whereProcessStatus(0)->exists()) {
+            $pendingUserAnonymizationRequest->process_status = 1;
+            $pendingUserAnonymizationRequest->save();
+            $startTime = microtime(true);
+
+            $users = User::with([
+                    "orchUser.entities",
+                    "userParameters" => function($q) use ($anonymizableParameterKeys) {
+                        $q->whereIn("parameter_user_key",$anonymizableParameterKeys);
+                    }
+                ])
+                ->whereHas("orchUser.entities", function($query) use($entityKey) {
+                    $query->where("entity_key","=",$entityKey);
+                })
+                ->whereDoesntHave("anonymization")
+                ->whereIn("user_key",$userKeys)
+                ->get();
+
+            $logData = array(
+                "time"      => 0,
+                "userCount" => $users->count(),
+                "success"   => 0,
+                "failed"    => 0,
+                "users"     => array()
+            );
+            
+            foreach ($users as $user) {
+                $resultCode = null;
+
+                if ($user->orchUser->entities->count()==1) {
+                    foreach ($user->userParameters as $userParameter) {
+                        $userParameter->value = null;
+                        $userParameter->save();
+                    }
+                    
+                    $user->password = bcrypt(str_random(8));
+                    $user->name = "Anonymized User";
+                    $user->email = $user->user_key . "-" . $entityKey . "@anonymized.empatia-project.eu";
+                    $user->public_email = 0;
+                    $user->save();
+
+                    $resultCode = 1;
+                    $logData["success"]++;
+
+                    $user->anonymization()->create([
+                        'entity_key' => $entityKey,
+                        'user_anonymization_request_id' => $pendingUserAnonymizationRequest->id
+                    ]);
+                } else {
+                    $resultCode = -1;
+                    $logData["failed"]++;
+                }
+
+                $logData["users"][$user->user_key] = $resultCode;
+            }
+            $logData["time"] = microtime(true)-$startTime;
+
+            $pendingUserAnonymizationRequest->process_status = 2;
+            $pendingUserAnonymizationRequest->log = serialize($logData);
+            $pendingUserAnonymizationRequest->save();
+        }
+    }
+
+    public function deleteUserParameters($entity,$user) {
+        $userId = User::whereUserKey($user->user_key)->firstOrFail();
+        $parameters = ParameterUserType::whereEntityId($entity->id)->get();
+        
+        foreach($parameters as $parameter){
+            $userParameter = UserParameter::whereParameterUserKey($parameter->parameter_user_type_key)->whereUserId($userId->id)->firstOrFail();
+            $userParameter->delete();
+        }
+        $userId->delete();
     }
 }

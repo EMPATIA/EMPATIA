@@ -30,6 +30,23 @@ class Cb extends Model
         'start_date',
         'end_date',
         'tag',
+        'template',
+        'page_key',
+	    'start_topic',
+        'end_topic',
+        'start_topic_edit',
+        'end_topic_edit',
+        'start_submit_proposal',
+        'end_submit_proposal',
+        'start_technical_analysis',
+        'end_technical_analysis',
+        'start_complaint',
+        'end_complaint',
+        'start_show_results',
+        'end_show_results',
+        'start_vote',
+        'end_vote',
+        'filters',
         '_statistics',
         '_vote_statistics',
         '_cached_data'
@@ -203,6 +220,14 @@ class Cb extends Model
           return $this->hasMany('App\CbTranslation');
       }
 
+      /**
+       * Each Cb has many Translation
+       * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function translationCode() {
+        return $this->hasMany('App\TranslationCode');
+    }
+
     /**
      * Each Cb has many CbMenuTranslation
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
@@ -217,4 +242,22 @@ class Cb extends Model
     public function operationSchedules() {
         return $this->hasMany('App\CbOperationSchedule');
     }
+
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function childs() {
+        return $this->hasMany('App\Cb', 'parent_cb_id','id');
+    }
+
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Relations\HasOne
+     */
+    public function parent() {
+        return $this->hasOne('App\Cb', 'parent_cb_id', 'id');
+    }
+
+
 }

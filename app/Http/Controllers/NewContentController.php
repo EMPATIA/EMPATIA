@@ -171,14 +171,12 @@ class NewContentController extends Controller
                     "created_at"    => $item->created_at
                 ];
             });
-
             $content
                 ->with(array('sections' => function ($query) {
                     $query->with(array('sectionType', 'sectionParameters' => function($subQuery) {
                         $subQuery->with('sectionTypeParameter');
                     }));
-                },'contentSites'));
-
+                },'contentSites', 'contentType'));
 
             if (is_null($version)) {
                 if (NewContent::whereContentKey($contentKey)->whereActive(1)->count()==1) {
@@ -207,6 +205,7 @@ class NewContentController extends Controller
             $content["versions_list"] = $versions;
             return response()->json($content, 200);
         } catch (Exception $e) {
+            dd($e->getMessage());
             return response()->json(['error' => 'Failed to retrieve the Content'], 500);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
@@ -380,12 +379,13 @@ class NewContentController extends Controller
         }
     }
 
-    public function publicShow(Request $request, $contentType, $contentKey) {
+    public function publicShow(Request $request, $contentKey) {
         try {
             $content = NewContent::whereContentKey($contentKey)->whereActive(1)->firstOrFail();
             $canBeShown = true;
-            if ($content->contentType()->firstOrFail()->code!=$contentType)
-                $canBeShown = false;
+
+//            if ($content->contentType()->firstOrFail()->code!=$contentType)
+//                $canBeShown = false;
 
             if ($content->entity_key!=$request->header('X-ENTITY-KEY',null))
                 $canBeShown = false;

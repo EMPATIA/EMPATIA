@@ -49,7 +49,7 @@ class TimezonesController extends Controller
 {
     protected $keysRequired = [
         'name',
-        'code'
+        'country_code'
     ];
 
     /**
@@ -62,9 +62,35 @@ class TimezonesController extends Controller
     public function index(Request $request)
     {
         try{
-            $timezones = Timezone::orderBy('name')->get();
-            return response()->json(['data' =>$timezones], 200);
+            $timezones = Timezone::query();
+            $tableData = $request->input('tableData') ?? null;
 
+            if (!empty($tableData)) {
+                $recordsTotal = $timezones->count();
+
+                $query = $timezones
+                    ->orderBy($tableData['order']['value'], $tableData['order']['dir']);
+
+                if(!empty($tableData['search']['value'])) {
+                    $query = $query
+                        ->where('country_code', 'like', '%'.$tableData['search']['value'].'%')
+                        ->orWhere('name', 'like', '%'.$tableData['search']['value'].'%');
+                }
+
+                $recordsFiltered = $query->count();
+
+                $timezones = $query
+                    ->skip($tableData['start'])
+                    ->take($tableData['length'])
+                    ->get();
+
+                $data['timezones'] = $timezones;
+                $data['recordsTotal'] = $recordsTotal;
+                $data['recordsFiltered'] = $recordsFiltered;
+            } else
+                $data = $timezones->orderBy('name')->get();
+
+            return response()->json(["data" => $data], 200);
         }catch (Exception $e) {
             return response()->json(['error' => 'Failed to retrieve Timezones'], 500);
         }
@@ -250,10 +276,10 @@ class TimezonesController extends Controller
         ONE::verifyKeysRequest($this->keysRequired, $request);
         if (OrchUser::verifyRole($userKey, "admin")){
             try{
-                $timezone = Timezone::create(
+                $timezone = Timezone::create( 
                     [
                         'name'      => $request->json('name'),
-                        'code'      => $request->json('code')
+                        'country_code'      => $request->json('country_code')
                     ]
                 );
                 return response()->json($timezone, 201);
@@ -365,7 +391,7 @@ class TimezonesController extends Controller
             try{
                 $timezone = Timezone::findOrFail($id);
                 $timezone->name = $request->json('name');
-                $timezone->code = $request->json('code');
+                $timezone->country_code = $request->json('country_code');
                 $timezone->save();
 
                 return response()->json($timezone, 200);

@@ -553,10 +553,13 @@ class One
      * @param $notificationCode
      * @return string
      */
-    public static function sendNotificationEmail(Request $request, $notificationCode)
+    public static function sendNotificationEmail(Request $request, $notificationCode, $tags = [])
     {
 
         try{
+            if (empty($tags) && !empty($request["tags"]))
+                $tags = $request["tags"];
+            
             $userKey = !empty($request->header('X-AUTH-TOKEN')) ? ONE::verifyToken($request) : 'SYSTEM';
 
             $entityKey = $request->header('X-ENTITY-KEY');
@@ -579,7 +582,7 @@ class One
 
             $userEmails = User::whereIn('user_key', $userKeys)->get()->pluck('email');
 
-            $response = Notify::sendEmailByTemplateKey($request, $site, $entityNotification->template_key, $userEmails, $userKey,$request['tags'] ?? null);
+            $response = Notify::sendEmailByTemplateKey($request, $site, $entityNotification->template_key, $userEmails, $userKey,$tags);
 
             return $response;
         } catch (Exception $e) {
@@ -587,4 +590,24 @@ class One
             return response()->json(['error' => 'Failed to Send Notification Emails'], 500);
         }
     }
+    
+    /**
+     * @param $request
+     * @return mixed
+     */
+    public static function getSite($request)
+    {
+        try {
+            $site = Site::where("key",$request->header('X-SITE-KEY'))->first();
+
+            if (empty($site)){
+                return false;
+            } else {
+                return $site;
+            }
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to retrieve Site'], 500);
+        }
+    }
+
 }

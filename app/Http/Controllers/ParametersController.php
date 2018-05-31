@@ -322,8 +322,12 @@ class ParametersController extends Controller
                     'currency' => $request->json('currency'),
                     'position' => $lastPosition,
                     'use_filter' => $request->json('use_filter'),
-                    'private' => $request->json('private')
-
+                    'private' => $request->json('private'),
+                    'highlight' => $request->json('highlight'),
+                    'side' => $request->json('side'),
+                    'topic_image' => $request->json('topic_image'),
+                    'max_number_files' => $request->json('max_number_files'),
+                    'max_number_files_flag' => $request->json('max_number_files_flag'),
                 ]
             );
 
@@ -485,7 +489,12 @@ class ParametersController extends Controller
 //            $parameter->position = $request->json('position');
             $parameter->use_filter = $request->json('use_filter');
             $parameter->private = $request->json('private');
-
+            $parameter->highlight = $request->json('highlight');
+            $parameter->side = $request->json('side');
+            $parameter->topic_image = $request->json('topic_image');
+            $parameter->max_number_files = $request->json('max_number_files');
+            $parameter->max_number_files_flag = $request->json('max_number_files_flag');
+            
             $parameter->save();
 
             foreach ($request->json('translations') as $translation) {
@@ -644,6 +653,8 @@ class ParametersController extends Controller
                     $field->save();
                 }
             }
+
+            CbsController::updateCachedData($request->cb_key);
 
             $response = $parameter->with('options', 'parameterFields')->get();
 
@@ -943,7 +954,9 @@ class ParametersController extends Controller
                         'value' => $parameter->value,
                         'currency' => empty($parameter->currency) ? null : $parameter->currency,
                         'position' => $lastPosition,
-                        'use_filter' => $parameter->use_filter
+                        'use_filter' => $parameter->use_filter,
+                        'highlight' => $parameter->highlight,
+                        'side' => $parameter->side
                     ]
                 );
 
@@ -1045,6 +1058,8 @@ class ParametersController extends Controller
                             'currency' => empty($parameter->currency) ? null : $parameter->currency,
                             'position' => empty($parameter->position) ? $lastPosition : $parameter->position,
                             'use_filter' => $parameter->use_filter,
+                            'highlight' => $parameter->highlight,
+                            'side' => $parameter->side,
                         ]
                     );
                 }
@@ -1057,6 +1072,8 @@ class ParametersController extends Controller
                         'currency' => empty($parameter->currency) ? null : $parameter->currency,
                         'position' => empty($parameter->position) ? $lastPosition : $parameter->position,
                         'use_filter' => $parameter->use_filter,
+                        'highlight' => $parameter->highlight,
+                        'side' => $parameter->side,
                     ]);
                 }
                 $parametersNew[] = $cbParameter->id;

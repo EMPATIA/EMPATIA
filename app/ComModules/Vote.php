@@ -93,4 +93,51 @@ class Vote
         }
         return $response->json();
     }
+
+    public static function getAllEventLevelsByCbKey($cbKey) {
+        $response = One::get([
+            'component' => 'vote',
+            'api' => 'eventlevels',
+            'method' => 'getAllEventLevelsByCbKey',
+            'params'=>[
+                'cb_key'=> $cbKey
+            ]
+        ]);
+
+        if($response->statusCode() != 200){
+            throw new Exception(trans("comModulesVote.errorRetrievingEventLevel"));
+        }
+        return $response->json();
+    }
+
+    public static function getVoteResults($voteKey) {
+        $response = One::get([
+            'component' => 'vote',
+            'api' => 'event',
+            'api_attribute' => $voteKey,
+            'method' => 'voteResults'
+        ]);
+
+        if($response->statusCode() != 200){
+            throw new Exception(trans("comModulesVote.errorRetrievingVoteResults"));
+        }
+        return $response->json();
+    }
+
+    public static function getEventAndVotes($eventKey) {
+        $response = One::get([
+            'component' => 'vote',
+            'api' => 'event',
+            'api_attribute' => $eventKey,
+            'method' => 'getEventAndVotes',
+            'params' => [
+                'openDataNoUser' => true
+            ]
+        ]);
+
+        if($response->statusCode() != 200){
+            throw new Exception(trans("comModulesVote.errorRetreivingEventVotes"));
+        }
+        return $response->json();
+    }
 }

@@ -702,7 +702,12 @@ class UsersController extends Controller
     public function getListUsers(Request $request)
     {
         try {
-            $users = User::with('userParameters')->whereIn('user_key', $request->json('userList'))->get();
+            $usersKeysLists = array_chunk($request->json("userList"),1000);
+            $users = [];
+            foreach ($usersKeysLists as $usersKeys) {
+                $users = array_merge($users,User::with("userParameters")->whereIn('user_key', $usersKeys)->get()->keyBy("user_key")->toArray());
+            }
+
             return response()->json($users, 200);
         } catch (Exception $e) {
             return response()->json(['error' => 'Error getting User List'], 500);
@@ -795,11 +800,20 @@ class UsersController extends Controller
 
     public function getListNames(Request $request)
     {
+
+        if(!empty($request->analytics)){
+            if($request->analytics == 1){
+                $users = User::select('user_key', 'email','name')->get();
+                $users = collect($users)->keyBy('user_key')->toArray();
+                return response()->json(['users' => $users], 200);
+            }
+        }
+
         $validation = $this->validateUser($request);
 
         if (!empty($validation->getData()->user_key)) {
             try {
-                $users = User::whereIn('user_key', $request->json('userList'))->select('user_key', 'name', 'photo_id', 'photo_code')->get()->keyBy('user_key');
+                $users = User::whereIn('user_key', $request->json('userList'))->select('user_key', 'email','name', 'photo_id', 'photo_code')->get()->keyBy('user_key');
                 return response()->json(['data' => $users], 200);
             } catch (ModelNotFoundException $e) {
                 return response()->json(['error' => 'User not Found'], 404);
@@ -841,12 +855,13 @@ class UsersController extends Controller
         try {
             $entityKey = $request->header('X-ENTITY-KEY','');
 
-            $users = User::whereHas('orchUser.entities', function ($q) use ($entityKey) {
-                $q->where("entity_key","=",$entityKey);
-            })->whereIn('user_key', $request->json('userList'))
-                ->select('user_key', 'name', 'public_name','surname','public_surname','photo_id', 'photo_code')
+            $users = OrchUser::with("user:user_key,name,public_name,surname,public_surname,photo_id,photo_code")
+                ->whereHas('entities', function ($q) use ($entityKey) {
+                    $q->where("entity_key","=",$entityKey);
+                })
+                ->whereIn('user_key', $request->json('userList'))
                 ->get()
-                ->keyBy('user_key');
+                ->pluck("user","user_key");
 
             foreach ($users as $user) {
                 if ($user->public_name!=1)
@@ -945,11 +960,20 @@ class UsersController extends Controller
             try {
                 $roleUserRequest = ONE::verifyRole($userKey, $request);
                 if ($roleUserRequest === 'admin' || $roleUserRequest === 'manager' || $userKeyReq === $userKey) {
-                    $user = User::where('user_key', '=', $userKeyReq)->firstOrFail();
+                    $user = User::with("anonymization.anonymizationRequest.anonymizer")->where('user_key', '=', $userKeyReq)->firstOrFail();
                     $user['user_parameters'] = $user->userParameters()->get()->groupBy('parameter_user_key');
 
                     if($request->withSms)
                         $user['sms_sent'] = $user->sms()->count();
+
+
+                    $user->last_profile_update = $user->updated_at;
+
+                    $mostRecentUserParameter = $user->userParameters->sortByDesc("updated_at")->first();
+                    if (!empty($mostRecentUserParameter) && $mostRecentUserParameter->updated_at>$user->last_profile_update)
+                        $user->last_profile_update = $mostRecentUserParameter->updated_at;
+
+                    $user->last_profile_update = $user->last_profile_update->toDateTimeString();
 
                     return response()->json($user, 200);
                 }
@@ -1073,7 +1097,7 @@ class UsersController extends Controller
         ONE::verifyKeysRequest(array_merge($this->requiredParameters, ['password']), $request);
         $siteKey  = !empty($request->header('X-SITE-KEY')) ? $request->header('X-SITE-KEY') : null;
         $libertriumServerLink = $this->checkLibertriumSiteConfiguration($siteKey);
-    
+
         try {
             if(!is_null($request->json('identity_card')) && !empty($request->json('identity_card'))){
                 if (User::whereIdentityCard($request->json('identity_card'))->exists()){
@@ -1083,7 +1107,8 @@ class UsersController extends Controller
 
             if(!is_null($request->json('email')) && !empty($request->json('email'))){
                 if (User::whereEmail($request->json('email'))->exists()){
-                    $user = User::whereEmail($request->json('email'))->firstOrFail();
+                    return response()->json(['error' => 'Email already exists'], 409);
+                    //$user = User::whereEmail($request->json('email'))->firstOrFail();
                 }
                 if ($libertriumServerLink){
                     if ($this->libertriumLoginExists( $request->json('email'),$libertriumServerLink)){
@@ -1095,8 +1120,8 @@ class UsersController extends Controller
             /** Verify unique user parameters*/
             if(!empty($request->json('parameters'))){
                 $unique = $this->verifyUserParameters($request->json('parameters'));
-                if(empty($unique)){
-                    return response()->json(['error' => 'Parameter need to be unique'], 408);
+                if($unique == false){
+                    return response()->json(['error' => 'Parameter need to be unique1'], 408);
                 };
             }
 
@@ -1286,6 +1311,7 @@ class UsersController extends Controller
      */
     public function update(Request $request, $userKeyReq)
     {
+        \Log::info(">>>> +**** ERROR: 0");
         $validation = $this->validateUser($request);
 
         if (!(empty($validation->getData()->user_key))) {
@@ -1312,7 +1338,7 @@ class UsersController extends Controller
                     if(!empty($request->json('parameters'))){
                         $unique = $this->verifyUserParameters($request->json('parameters'),$user);
                         if(empty($unique)){
-                            return response()->json(['error' => 'Parameter need to be unique'], 500);
+                            return response()->json(['error' => 'Parameter need to be unique2'], 500);
                         };
                     }
 
@@ -1346,6 +1372,7 @@ class UsersController extends Controller
                     $parametersOld = $user->userParameters()->pluck('id');
                     $parametersNew = [];
 
+                    \Log::info(">>>> +**** ERROR: 1");
                     if(!empty($request->json('parameters'))){
                         foreach ($request->json('parameters') as $key => $value) {
                             if (is_array($value)) {
@@ -1406,6 +1433,7 @@ class UsersController extends Controller
             } catch (ModelNotFoundException $e) {
                 return response()->json(['error' => 'User not Found'], 404);
             } catch (Exception $e) {
+                \Log::info(">>>> +**** ERROR: ".$e->getMessage);
                 return response()->json(['error' => $e], 500);
             }
         }
@@ -1664,8 +1692,7 @@ class UsersController extends Controller
             $userVerifyEmail = User::whereEmail($request->email)->first();
 
             if (empty($userVerifyEmail) || $user->email == $userVerifyEmail->email){
-
-                $socialId = SocialNetwork::whereSocialId($request->social_id)->first();
+                $socialId = SocialNetwork::whereSocialId($request->social_id)->whereUserId($user->user_id)->first();
 
                 if (empty($socialId)) {
                     $socialId = $user->socialNetworks()->create([
@@ -2055,11 +2082,13 @@ class UsersController extends Controller
             ONE::verifyKeysRequest(['parameter_user_key','value'], $request);
             $parametersKey = $request->json('parameter_user_key');
 
-            /** check if parameter is defined as unique*/
-            $parameterUnique = Orchestrator::verifyUniqueParameterUserType($parametersKey);
-            if(empty($parameterUnique)){
-                /** Parameter is not defined as unique, the validation is ok*/
-                return response()->json(1, 200);
+            if(empty($request->vatNumber)){
+                /** check if parameter is defined as unique*/
+                $parameterUnique = Orchestrator::verifyUniqueParameterUserType($parametersKey);
+                if(empty($parameterUnique)){
+                    /** Parameter is not defined as unique, the validation is ok*/
+                    return response()->json(1, 200);
+                }
             }
             $validation = $this->validateUser($request);
             $isUnique = 1;
@@ -2105,12 +2134,16 @@ class UsersController extends Controller
                 continue;
             if (!is_array($value) && !empty($parametersUnique) && array_key_exists($key, $parametersUnique) && $parametersUnique->{$key}) {
                 if(empty($user)){
+                    \Log::info(">>>> +**** ERROR JORGE: NAO TENHO USER");
                     $userParameterTypeUnique = UserParameter::whereParameterUserKey($key)->whereValue($value)->first();
                 }else{
+                    \Log::info(">>>> +**** ERROR JORGE: TENHO USER E VOU VALIDADAR");
                     $userParameterTypeUnique = UserParameter::whereParameterUserKey($key)->whereValue($value)->whereNotIn('user_id', [$user->id])->first();
+
                 }
                 /** if one user as same value in parameter, validation is not ok*/
                 if (isset($userParameterTypeUnique)) {
+                    \Log::info(">>>> +**** ERROR JORGE: TENHO PARAMETRO REPETIDO".json_encode($userParameterTypeUnique));
                     return false;
                 }
             }
@@ -2133,21 +2166,35 @@ class UsersController extends Controller
 
                     $tableData = $request->json('tableData') ?? null;
 
-                    $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->firstOrFail();
-                    $role = $request->json('role');
-                    if (is_null($role))
-                        $usersList = $entity->users()->where('role', '!=', 'admin')->pluck('role', 'user_key');
-                    else
-                        $usersList = $entity->users()->whereRole($role)->pluck('role', 'user_key');
+                    $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->first();
 
-                    $recordsTotal = $usersList->count();
+                    $role = $request->json('role');
+
+                    if (is_null($role)){
+                        if ($entity) {
+                            $usersList = $entity->users()->where('role', '!=', 'admin')->pluck('role', 'user_key');
+                        } else {
+                            $usersList = OrchUser::pluck('user_key');
+                        }
+                    } else{
+                        if ($entity) {
+                            $usersList = $entity->users()->whereRole($role)->pluck('role', 'user_key');
+                        } else {
+                            if ($role == 'admin')
+                                $usersList = OrchUser::whereAdmin(1)->pluck($role,'user_key');
+                        }
+                    }
+
                     $usersListKeys = $usersList->keys();
 
-                    $query = User::whereIn('user_key', $usersListKeys)
-                        ->orderBy($tableData['order']['value'], $tableData['order']['dir'])
-                        ->skip($tableData['start'])
-                        ->take($tableData['length'])
-                        ->select('user_key', 'name', 'email', 'created_at', 'confirmed');
+                    $query = User::whereIn('user_key', $usersListKeys);
+
+                    if (!empty($request->get("anonymized")))
+                        $query = $query->whereHas("anonymization");
+                    else
+                        $query = $query->whereDoesntHave("anonymization");
+
+                    $recordsTotal = $query->count();
 
                     if(!empty($tableData['search']['value'])) {
                         $query = $query
@@ -2155,15 +2202,24 @@ class UsersController extends Controller
                             ->orWhere('email', 'like', '%'.$tableData['search']['value'].'%');
                     }
 
-                    $users = $query->whereIn('user_key', $usersListKeys)->get();
+                    $recordsFiltered = $query->count();
+
+                    $query = $query->orderBy($tableData['order']['value'], $tableData['order']['dir']);
+
+                    if (!empty($tableData["start"]))
+                        $query = $query->skip($tableData['start']);
+                    if (!empty($tableData["length"]))
+                        $query = $query->take($tableData['length']);
+
+                    $users = $query->select('user_key', 'name', 'email', 'created_at', 'confirmed')->get();
 
                     foreach ($users as $user){
                         if ($usersListKeys->contains($user->user_key)){
-                            $user->role = $usersList[$user->user_key];
+                            $user->role = $usersList[$user->user_key] ?? "user";
                         }
                     }
 
-                    return response()->json(['data' => $users, 'recordsTotal' => $recordsTotal]);
+                    return response()->json(['data' => $users, 'recordsTotal' => $recordsTotal, 'recordsFiltered' => $recordsFiltered]);
                 }
             }
         } catch (Exception $e) {
@@ -2183,37 +2239,55 @@ class UsersController extends Controller
             if ($validation){
                 $userKey = $validation->getData()->user_key;
                 if ((ONE::verifyRole($userKey, $request) === 'admin') || (ONE::verifyRole($userKey, $request) === 'manager')) {
+                    $status = $request->json('status') ?? 'authorized';
+//                    $entity = Entity::with(['users' => function ($query) use ($status) {
+//                        $query->whereRole($this->roles["USER"])->where('status', '<>', $status);
+//                    }])->whereEntityKey($request->header('X-ENTITY-KEY'))->first();
+
+//                    $usersAwaitingModeration = $entity->users;
 
                     $tableData = $request->json('table_data') ?? null;
                     $siteKey = $request->json('site_key') ?? null;
-                    $usersList = Orchestrator::siteUsersToModerate($siteKey);
+                    $entity = Entity::whereEntityKey($request->header('X-ENTITY-KEY'))->firstOrFail();
+                    $usersList = $entity->users()->where('role', '<>', 'manager')->where('status', '<>',$status)->get();
+                    $usersKeysList = [];
+                    foreach($usersList as $user){
+                        $usersKeysList[] = $user->user_key;
+                    }
 
-                    $data['recordsTotal'] = User::whereIn('user_key', $usersList)->whereConfirmed(1)->count();
+                    //get the total number of users that aren't authorized yet and haven't the email confirmed
+                    $data['recordsTotal'] = User::whereIn('user_key', $usersKeysList)->count();
 
-                    $query = User::whereIn('user_key', $usersList)
+//get the total number of users that aren't authorized yet and have the email confirmed
+                    $data['recordsTotal'] = User::whereIn('user_key', $usersKeysList)->whereConfirmed(1)->count();
+
+                    $query = User::whereIn('user_key', $usersKeysList)
                         ->orderBy($tableData['order']['value'], $tableData['order']['dir'])
-                        ->whereConfirmed(1)
-                        ->select('user_key', 'name', 'email', 'created_at', 'confirmed');
+//                        ->whereConfirmed(1)
+                        ->select('user_key', 'name', 'email', 'created_at', 'updated_at', 'confirmed');
 
-                    if(empty($tableData['search']['value'])){
-                        $data['recordsFiltered'] = $query->count();
-
-                        $data['users'] = $query
-                            ->skip($tableData['start'])
-                            ->take($tableData['length'])
-                            ->get();
-                    } else {
+                    if(!empty($tableData['search']['value'])){
                         $query = $query->where(function ($subQuery) use($tableData){
-                            $subQuery->where('name', 'like', '%'.$tableData['search']['value'].'%')
+                            $subQuery
+                                ->where('name', 'like', '%'.$tableData['search']['value'].'%')
                                 ->orWhere('email', 'like', '%'.$tableData['search']['value'].'%');
                         });
+                    }
 
-                        $data['recordsFiltered'] = $query->count();
+                    $data['recordsFiltered'] = $query->count();
+                    $data['users'] = $query
+                        ->skip($tableData['start'])
+                        ->take($tableData['length'])
+                        ->get();
 
-                        $data['users'] = $query
-                            ->skip($tableData['start'])
-                            ->take($tableData['length'])
-                            ->get();
+                    foreach ($data["users"] as $user) {
+                        $user->last_profile_update = $user->updated_at;
+
+                        $mostRecentUserParameter = $user->userParameters()->orderByDesc("updated_at")->first();
+                        if (!empty($mostRecentUserParameter) && $mostRecentUserParameter->updated_at>$user->last_profile_update)
+                            $user->last_profile_update = $mostRecentUserParameter->updated_at;
+
+                        $user->last_profile_update = $user->last_profile_update->toDateTimeString();
                     }
                     return response()->json(['data' => $data]);
                 }
@@ -2664,4 +2738,27 @@ class UsersController extends Controller
             return response()->json(['error' => 'Failed to verify user questionnaire unique key'], 500);
         }
     }
+
+
+    /*
+    public function createUserAssociation(){
+        try{
+            $usersToAttach = User::whereDoesntHave('orchUser')->get();
+        $i = 0;
+    foreach($usersToAttach as $user){
+                $orchUser = OrchUser::create([
+                    'user_key' => $user->user_key,
+                    'admin' => 0,
+                    'geographic_area_id' => null
+                ]);
+                $orchUser->entities()->attach(1, ['role' => 'user', 'status' => 'registered']);
+                $i++;
+            }
+
+            return response()->json(['success' => 'UsersAttached total: '.$i], 200);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to verify user questionnaire unique key'], 500);
+        }
+
+    }*/
 }

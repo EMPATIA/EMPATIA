@@ -8,8 +8,10 @@ use App\FlagAttachmentTranslation;
 use App\FlagType;
 use App\One\One;
 use App\Post;
+use App\Topic;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Carbon\Carbon;
 
 class FlagsController extends Controller
 {
@@ -36,14 +38,12 @@ class FlagsController extends Controller
         try {
 
             $cb = Cb::with([
-                "flags" => function ($q) {
-                    $q->where('active', '=', 1);
-                },
+                "flags",
                 "flags.translations" => function ($q) use ($request) {
                     $q->where('language_code', '=', $request->header('LANG-CODE'));
                 },
             ])->whereCbKey($cbKey)->firstOrFail();
-
+            
             return response()->json(['data' => $cb->flags], 200);
 
         } catch (Exception $e) {
@@ -143,24 +143,43 @@ class FlagsController extends Controller
 
     public function createNewAttachment($attachmentCode,$flag,$attributes,$translations = [])
     {
+        $active = !empty($attributes["status"]??"") ? $attributes["status"] : false;
         switch ($attachmentCode) {
             case 'CB':
                 $cb = Cb::whereCbKey($attributes['cbKey'])->firstOrFail();
-                $cb->flags()->attach($flag,['active' => true, 'created_by' => $attributes['userKey']]);
+                $cb->flags()->attach($flag,['active' => $active , 'created_by' => $attributes['userKey']]);
 
                 break;
             case 'TOPIC':
-                echo "i equals 1";
+                $topic = Topic::whereTopicKey($attributes['topicKey'])->firstOrFail();
+                
+                if ($attributes["inactivateOldFlags"]??false) {
+                    $relations = $topic->flags()->get();
+                    foreach ($relations as $relation){
+                        $relation->pivot->active = false;
+                        $relation->pivot->save();
+                    }
+                }
+
+                $topic->flags()->attach($flag,['active' => $active , 'created_by' => $attributes['userKey']]);
+                $relationId = $topic->flags()->whereFlagId($flag->id)->withPivot("id")->orderBy('pivot_created_at', 'desc')->first()->pivot->id;
+                if(!empty($translations)){
+                    $this->setAttachmentTranslation($relationId,$translations,$attachmentCode);
+                }
                 break;
             case 'POST':
                 $post = Post::wherePostKey($attributes['postKey'])->firstOrFail();
 
-                $relations = $post->flags()->get();
-                foreach ($relations as $relation){
-                    $relation->pivot->active = false;
-                    $relation->pivot->save();
+ 
+                if ($attributes["inactivateOldFlags"]??false) {
+                    $relations = $post->flags()->get();
+                    foreach ($relations as $relation){
+                        $relation->pivot->active = false;
+                        $relation->pivot->save();
+                    }
                 }
-                $post->flags()->attach($flag,['active' => true, 'created_by' => $attributes['userKey']]);
+
+                $post->flags()->attach($flag,['active' => $active , 'created_by' => $attributes['userKey']]);
                 $relationId = $post->flags()->whereFlagId($flag->id)->withPivot("id")->orderBy('pivot_created_at', 'desc')->first()->pivot->id;
                 if(!empty($translations)){
                     $this->setAttachmentTranslation($relationId,$translations,$attachmentCode);
@@ -171,15 +190,14 @@ class FlagsController extends Controller
 
     public function setAttachmentTranslation($element,$translations,$attachmentCode)
     {
-
-        foreach ($translations as $translation){
+        foreach ($translations as $languageCode => $translation){
             FlagAttachmentTranslation::create(
                 [
                     'relation_id'       =>  $element,
                     'relation_type_code'      => $attachmentCode,
-                    'language_code' => $translation['language_code'],
+                    'language_code' => $languageCode,
                     'active'        => true,
-                    'description'   => empty($translation['description']) ? null : $translation['description']
+                    'description'   => $translation
                 ]
             );
         }
@@ -295,21 +313,29 @@ class FlagsController extends Controller
 
     public function attachFlag(Request $request)
     {
+        $userKey = ONE::verifyLogin($request);
         try {
-            $translations = [];
-            $attributes = $request->json('attributes');
-            $flag = Flag::findOrFail($attributes['flag_id']);
-            $userKey = ONE::verifyLogin($request);
-            $attributes['userKey'] = $userKey;
+            $attachmentCode = $request->json('attachmentCode');            
 
-            if($request->json('translations')){
-                $translations = $request->json('translations');
+            $inactivateOldFlags = true;
+            foreach ($request->get("flag") as $flagId => $flagData) {
+                $flag = Flag::findOrFail($flagId);
+                
+                $translations = $flagData["translation"]??[];
+                
+                $flagData["userKey"] = $userKey;
+                $flagData["inactivateOldFlags"] = $inactivateOldFlags;
+                
+                if (!empty($request->get("topicKey")))
+                    $flagData["topicKey"] = $request->get("topicKey");
+                elseif (!empty($request->get("postKey")))
+                    $flagData["postKey"] = $request->get("postKey");
+                
+                $this->createNewAttachment($attachmentCode,$flag,$flagData,$translations);
+
+                $inactivateOldFlags = false;
             }
-
-            if($request->json('attachmentCode')){
-                $this->createNewAttachment($request->json('attachmentCode'),$flag,$attributes,$translations);
-            }
-
+            
             return response()->json(['data' => 'OK'], 200);
         } catch (Exception $e) {
             return response()->json(['error' => 'Failed to store new Parameter'], 500);
@@ -319,33 +345,51 @@ class FlagsController extends Controller
 
     public function getElementFlagHistory(Request $request)
     {
-        $attachmentCode = $request->json('attachmentCode');
+            $attachmentCode = $request->json('attachmentCode');
 
-        switch ($attachmentCode) {
-            case 'TOPIC':
-                echo "i equals 1";
-                break;
-            case 'POST':
-                $post = Post::wherePostKey($request->json('elementKey'))->firstOrFail();
-                $flagHistory = $post->flags()->with(
-                    ["translations" => function ($q) use ($request) {
-                        $q->where('language_code', '=', $request->header('LANG-CODE'));
+            switch ($attachmentCode) {
+                case 'TOPIC':
+                    $topic = Topic::whereTopicKey($request->json('elementKey'))->firstOrFail();
+                    
+                    $flagHistory = $topic->flags()->with(
+                        ["translations" => function ($q) use ($request) {
+                            $q->where('language_code', '=', $request->header('LANG-CODE'));
+                            }
+                        ])->withPivot("id")->orderByDesc("pivot_id")->get();
+                    foreach ($flagHistory as $flag){
+                        $description = '';
+                        if(FlagAttachmentTranslation::whereRelationId($flag->pivot->id)->exists()){
+                            if($firstFetch = FlagAttachmentTranslation::whereRelationId($flag->pivot->id)->whereLanguageCode($request->header('LANG-CODE'))->first()){
+                                $description = $firstFetch->description;
+                            }else{
+                                $description = FlagAttachmentTranslation::whereRelationId($flag->pivot->id)->first()->description;
+                            }
                         }
-                    ])->withPivot("id")->get();
-                foreach ($flagHistory as $flag){
-                    $description = '';
-                    if(FlagAttachmentTranslation::whereRelationId($flag->pivot->id)->exists()){
-                        if($firstFetch = FlagAttachmentTranslation::whereRelationId($flag->pivot->id)->whereLanguageCode($request->header('LANG-CODE'))->first()){
-                            $description = $firstFetch->description;
-                        }else{
-                            $description = FlagAttachmentTranslation::whereRelationId($flag->pivot->id)->first()->description;
-                        }
+                        $flag['attachmentDescription'] = $description;
                     }
-                    $flag['attachmentDescription'] = $description;
-                }
-                return response()->json(['data' => $flagHistory], 200);
-                break;
-        }
+                    return response()->json(['data' => $flagHistory], 200);
+                    break;
+                case 'POST':
+                    $post = Post::wherePostKey($request->json('elementKey'))->firstOrFail();
+                    $flagHistory = $post->flags()->with(
+                        ["translations" => function ($q) use ($request) {
+                            $q->where('language_code', '=', $request->header('LANG-CODE'));
+                            }
+                        ])->withPivot("id")->orderByDesc("pivot_id")->get();
+                    foreach ($flagHistory as $flag){
+                        $description = '';
+                        if(FlagAttachmentTranslation::whereRelationId($flag->pivot->id)->exists()){
+                            if($firstFetch = FlagAttachmentTranslation::whereRelationId($flag->pivot->id)->whereLanguageCode($request->header('LANG-CODE'))->first()){
+                                $description = $firstFetch->description;
+                            }else{
+                                $description = FlagAttachmentTranslation::whereRelationId($flag->pivot->id)->first()->description;
+                            }
+                        }
+                        $flag['attachmentDescription'] = $description;
+                    }
+                    return response()->json(['data' => $flagHistory], 200);
+                    break;
+            }
     }
     /**
      * Remove the specified resource from storage.
@@ -362,6 +406,33 @@ class FlagsController extends Controller
             return response()->json(['error' => 'Flag not Found'], 404);
         } catch (Exception $e) {
             return response()->json(['error' => 'Failed to delete Flag'], 500);
+        }
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    public function toggleActiveStatus(Request $request) {
+        try{
+            $relationId = $request->get("relationId");
+            $elementKey = $request->get("elementKey");
+            $status = $request->get("status");
+            $attachmentCode = $request->get("attachmentCode");
+
+            switch ($attachmentCode) {
+                case 'TOPIC':
+                    $topic = Topic::whereTopicKey($elementKey)->firstOrFail();
+                    \DB::statement("UPDATE `flag_topic` set `updated_at` = ?, `active` = ? WHERE `id` = ?",[Carbon::now(), $status, $relationId]);
+                    
+                    break;
+                case 'POST':
+                    $post = Post::wherePostKey($elementKey)->firstOrFail();
+                    \DB::statement("UPDATE `flag_post` set `updated_at` = ?, `active` = ? WHERE `id` = ?",[Carbon::now(), $status, $relationId]);
+                    
+                    break;
+            }
+
+            return response()->json('Ok', 200);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to toggle active status'], 500);
         }
         return response()->json(['error' => 'Unauthorized'], 401);
     }

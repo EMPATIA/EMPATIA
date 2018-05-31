@@ -20,6 +20,7 @@ class AccessMenu extends Model
         'name',
         'description',
         'active',
+        'code',
         'created_by',
         'updated_by'
     ];

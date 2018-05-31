@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use App\PermGroup;
 use App\Entity;
 use App\EntityGroup;
 use App\OrchUser;
@@ -325,6 +325,25 @@ class EntityGroupsController extends Controller
                 ]
             );
 
+            //create permissions if $parentGroup != null
+            if($parentGroup != null){
+                $parentGroupPermissions = PermGroup::where('entity_group_id','=',$parentGroup->id)
+                                                    ->where('entity_id','=',$entity->id)
+                                                    ->where('cb_id','=',0)
+                                                    ->select('code')
+                                                    ->get();
+
+                if(!empty($parentGroupPermissions->first())){
+                    foreach( $parentGroupPermissions as $permission ){
+                        PermGroup::create([
+                            'code' => $permission->code,
+                            'entity_group_id' => $entityGroup->id,
+                            'entity_id' => $entity->id,
+                            'cb_id' => 0,
+                        ]);
+                    }
+                }
+            }
 
             return response()->json($entityGroup, 201);
         } catch(Exception $e){

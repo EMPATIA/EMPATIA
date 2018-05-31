@@ -172,4 +172,8 @@ class OrchUser extends Model
             ->withPivot('date_ignore')
             ->withTimestamps();
     }
+
+    public function user() {
+        return $this->hasOne('App\User','user_key','user_key');
+    }
 }

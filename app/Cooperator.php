@@ -14,7 +14,14 @@ class Cooperator extends Model
      *
      * @var array
      */
-    protected $fillable = ['topic_id', 'user_key','type_id','created_by','updated_by'];
+    protected $fillable = [
+        'topic_id',
+        'user_key',
+        'type_id',
+        'created_by',
+        'updated_by',
+        'token'
+    ];
 
     /**
      * Each CO-operator belongs to a Topic
@@ -48,5 +55,21 @@ class Cooperator extends Model
      */
     public function cooperatorTypes(){
         return $this->belongsTo('App\CooperatorType');
+    }
+
+    /**
+     * This defines a many-to-many relationship between Cooperators and Cooperations.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+     */
+    public function cooperations() {
+        return $this->belongsToMany('App\Cooperation')->withTimestamps();
+    }
+
+    /**
+     * @return mixed
+     */
+    public function latestCooperation() {
+        return $this->cooperations()->orderBy('pivot_created_at', 'desc')->first();
     }
 }

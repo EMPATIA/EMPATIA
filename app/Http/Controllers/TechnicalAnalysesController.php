@@ -468,7 +468,7 @@ class TechnicalAnalysesController extends Controller
 
             if(!empty($mails)){
                 $emailTemplate = Notify::getEmailTemplate($request->header('X-SITE-KEY'), 'technical_analysis_notification');
-                if(!empty($emailTemplate)){
+                if(!empty($emailTemplate->email_template_key)){
                     $response = Notify::sendEmailByTemplateKey($request, (object)$request->input('site'), $emailTemplate->email_template_key, $mails, $request->input('userKey'), null);
                 }else{
                     $response = 'Notification not send';

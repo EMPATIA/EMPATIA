@@ -66,7 +66,36 @@ class CountriesController extends Controller
     public function index(Request $request)
     {
         try{
-            $countries = Country::all();
+            $countries = Country::query();
+            $tableData = $request->input('tableData') ?? null;
+
+            if (!empty($tableData)) {
+                $recordsTotal = $countries->count();
+
+                $query = $countries
+                    ->orderBy($tableData['order']['value'], $tableData['order']['dir']);
+
+                if(!empty($tableData['search']['value'])) {
+                    $query = $query
+                        ->where('code', 'like', '%'.$tableData['search']['value'].'%')
+                        ->orWhere('name', 'like', '%'.$tableData['search']['value'].'%');
+                }
+
+                $recordsFiltered = $query->count();
+
+                $countries = $query
+                    ->skip($tableData['start'])
+                    ->take($tableData['length'])
+                    ->get();
+
+                $data['countries'] = $countries;
+                $data['recordsTotal'] = $recordsTotal;
+                $data['recordsFiltered'] = $recordsFiltered;
+            } else
+                $data = $countries->get();
+
+            return response()->json(["data" => $data], 200);
+
             return response()->json(['data' => $countries], 200);
         }catch(Exception $e){
             return response()->json(['error' => 'Failed to retrieve the Countries list'], 500);

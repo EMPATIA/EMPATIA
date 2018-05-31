@@ -290,29 +290,31 @@ class BEMenuController extends Controller
             if (empty($entityMenu))
                 $entityMenu = BEEntityMenu::whereEntityId(ONE::getEntity($request)->id)->first();
 
+            if (!empty($entityMenu)) {
+                $entityMenu->load("orderedElements.parameters.parameter","orderedElements.menuElement.parameters");
+                foreach ($entityMenu->orderedElements as $ordered_element) {
+                    foreach ($ordered_element->menuElement->parameters as $menuElementParameter) {
+                        $elementId = $menuElementParameter->id;
 
-            $entityMenu->load("orderedElements.parameters.parameter","orderedElements.menuElement.parameters");
-            foreach ($entityMenu->orderedElements as $ordered_element) {
-                foreach ($ordered_element->menuElement->parameters as $menuElementParameter) {
-                    $elementId = $menuElementParameter->id;
+                        if ($ordered_element->parameters->where("be_menu_element_parameter_id",$elementId)->count()>0)
+                            $ordered_element->parameters->where("be_menu_element_parameter_id",$elementId)->first()
+                                ->setAttribute("position",$menuElementParameter->pivot->position)
+                                ->setAttribute("element_code",$menuElementParameter->pivot->code);
 
-                    if ($ordered_element->parameters->where("be_menu_element_parameter_id",$elementId)->count()>0)
-                        $ordered_element->parameters->where("be_menu_element_parameter_id",$elementId)->first()
-                            ->setAttribute("position",$menuElementParameter->pivot->position)
-                            ->setAttribute("element_code",$menuElementParameter->pivot->code);
+                    }
 
+                    $ordered_element->setRelation("parameters",$ordered_element->parameters->sortBy("position"));
                 }
 
-                $ordered_element->setRelation("parameters",$ordered_element->parameters->sortBy("position"));
+                $language = $request->header('LANG-CODE');
+                $defaultLanguage = $request->header('LANG-CODE-DEFAULT');
+                foreach ($entityMenu->orderedElements as $element) {
+                    $element->newTranslation($language,$defaultLanguage);
+                }
+                return response()->json($entityMenu, 200);
             }
 
-            $language = $request->header('LANG-CODE');
-            $defaultLanguage = $request->header('LANG-CODE-DEFAULT');
-            foreach ($entityMenu->orderedElements as $element) {
-                $element->newTranslation($language,$defaultLanguage);
-            }
-
-            return response()->json($entityMenu, 200);
+            return response()->json([],400);
         } catch (Exception $e) {
             return response()->json(['error' => 'Failed to retrieve the Back Office Menu Element list'], 500);
         }

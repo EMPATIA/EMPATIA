@@ -77,4 +77,8 @@ class ParameterUserOption extends Model
         $translation = $this->hasMany('App\ParameterUserOptionTranslation')->orderByRaw("FIELD(language_code,'".$languageDefault."','".$language."')DESC")->first();
         $this->setAttribute('name',$translation->name ?? null);
     }
+
+    public function userParameters() {
+        return $this->hasMany("App\UserParameter","value","parameter_user_option_key");
+    }
 }

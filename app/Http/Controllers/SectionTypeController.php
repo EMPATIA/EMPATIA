@@ -21,18 +21,59 @@ class SectionTypeController extends Controller
     public function index(Request $request)
     {
         try {
-            $sectionTypes = SectionType::all();
+            $query = SectionType::query();
+            $tableData = $request->input('tableData') ?? null;
 
-            foreach ($sectionTypes as $key=>$sectionType) {
-                if (!($sectionType->translation($request->header('LANG-CODE')))) {
-                    if (!$sectionType->translation($request->header('LANG-CODE-DEFAULT'))){
-                        if (!$sectionType->translation('en'))
-                            $sectionTypes->forget($key);
+            if (!empty($tableData)) {
+                $recordsTotal = $query->count();
+
+                if (!empty($tableData['order']))
+                    $query = $query
+                        ->orderBy($tableData['order']['value'], $tableData['order']['dir']);
+
+                if(!empty($tableData['search']['value'])) {
+                    $query = $query
+                            ->where('code', 'like', '%'.$tableData['search']['value'].'%');
+                }
+
+                $recordsFiltered = $query->count();
+
+                if (!empty($tableData['start']))
+                    $query->skip($tableData['start']);
+                    
+                if (!empty($tableData['length']))
+                    $query->take($tableData['length']);
+
+                $sectionTypes = $query->get();
+
+                foreach ($sectionTypes as $key=>$sectionType) {
+                    if (!($sectionType->translation($request->header('LANG-CODE')))) {
+                        if (!$sectionType->translation($request->header('LANG-CODE-DEFAULT'))){
+                            if (!$sectionType->translation('en'))
+                                $sectionTypes->forget($key);
+                        }
                     }
                 }
+                
+                $data['sectionTypes'] = $sectionTypes;
+                $data['recordsTotal'] = $recordsTotal;
+                $data['recordsFiltered'] = $recordsFiltered;
+            } else {
+                $sectionTypes = $query->get();
+
+                foreach ($sectionTypes as $key=>$sectionType) {
+                    if (!($sectionType->translation($request->header('LANG-CODE')))) {
+                        if (!$sectionType->translation($request->header('LANG-CODE-DEFAULT'))){
+                            if (!$sectionType->translation('en'))
+                                $sectionTypes->forget($key);
+                        }
+                    }
+                }
+
+                $data = $sectionTypes;
             }
 
-            return response()->json($sectionTypes, 200);
+            return response()->json($data, 200);
         } catch (Exception $e) {
             return response()->json(['error' => 'Failed to retrieve the Section Types list'], 500);
         }

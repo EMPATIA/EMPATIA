@@ -31,7 +31,7 @@ class AddDescriptionToParameterUserTypeTranslationsTable extends Migration
         Schema::table('parameter_user_type_translations', function (Blueprint $table) {
             if (Schema::hasColumn('parameter_user_type_translations', 'description'))
             {
-                $table->text('description');
+                $table->dropColumn('description');
             }
         });
     }

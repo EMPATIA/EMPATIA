@@ -42,4 +42,13 @@ class ParameterType extends Model
     public function paramAddFields() {
         return $this->hasMany('App\ParamAddField', 'parameter_type_id', 'id');
     }
+
+    /**
+     * Each Parameter User Type has many Parameter User Options.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function parameterOptions() {
+        return $this->hasMany('App\ParameterOption');
+    }
 }

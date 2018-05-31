@@ -277,7 +277,7 @@ class CbQuestionnariesController extends Controller
                 }
 
                 //-------------Delete the unchecked Cb Questionnaires
-                $cbQuestionnairesToDelete = $cbQuestionnairesOld->diff($cbQuestionnairesNew);
+                $cbQuestionnairesToDelete = collect($cbQuestionnairesOld)->diff($cbQuestionnairesNew);
                 //Deletes the associated translations and the vote event relation in the database
                 if (!$cbQuestionnairesToDelete->isEmpty()){
                     foreach ($cbQuestionnairesToDelete as $id){

@@ -64,8 +64,10 @@ class AutoUpdateUserLoginLevels implements ShouldQueue
             }
             $userParameters = $authUser->userParameters;
             $userHasEmailConfirmed = $authUser->confirmed;
+            $orchUser = OrchUser::whereUserKey($user->user_key)->firstOrFail();
             $userHasSmsConfirmed = $authUser->sms_token == null ? true : false;
-
+            $userRelation = $entity->users()->where('user_id',$orchUser->id)->first();
+            $userIsModerated = ($userRelation->pivot->status == 'authorized');
             //get all entity login levels with parameter user types
             $entityLoginLevels = $entity->loginLevels()->with('parameters')->get();
 
@@ -101,7 +103,7 @@ class AutoUpdateUserLoginLevels implements ShouldQueue
                         // verify if it's the last element and update the user login level
                         if ($parameter === $parameterUserTypes->last()) {
 
-                            if ((empty($loginLevel->email_verification) || $userHasEmailConfirmed) && (empty($loginLevel->sms_verification) || $userHasSmsConfirmed)){
+                            if ((empty($loginLevel->manual_verification) || $userIsModerated) && (empty($loginLevel->email_verification) || $userHasEmailConfirmed) && (empty($loginLevel->sms_verification) || $userHasSmsConfirmed)){
                                 $loginLevelsCompleted[] = $loginLevel->id;
                             }
 
@@ -115,7 +117,7 @@ class AutoUpdateUserLoginLevels implements ShouldQueue
 
                         }
                     }
-                } elseif (empty($loginLevel->manual_verification) && (empty($loginLevel->email_verification) || $userHasEmailConfirmed) && (empty($loginLevel->sms_verification) || $userHasSmsConfirmed)) {
+                } elseif ((empty($loginLevel->manual_verification) || $userIsModerated) && (empty($loginLevel->email_verification) || $userHasEmailConfirmed) && (empty($loginLevel->sms_verification) || $userHasSmsConfirmed)) {
 
                     $loginLevelsCompleted[] = $loginLevel->id;
 

@@ -22,11 +22,6 @@ class CreateFlagTypesTable extends Migration
             $table->softDeletes();
         });
 
-        $flagTypes = array(
-            array('id' => '1',  'code' => 'topics',	    'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL),
-            array('id' => '2',  'code' => 'posts',      'created_at' => Carbon::now(),'updated_at' => Carbon::now(),'deleted_at' => NULL)
-        );
-        DB::table('flag_types')->insert($flagTypes);
     }
 
     /**

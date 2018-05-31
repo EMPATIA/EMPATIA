@@ -140,6 +140,9 @@ class Topic extends Model
     public function status() {
         return $this->hasMany('App\Status');
     }
+    public function activeStatus() {
+        return $this->hasOne('App\Status')->where("active",1);
+    }
 
     /**
      * Return the model with dates converted to entity timezone
@@ -241,5 +244,9 @@ class Topic extends Model
      */
     public function topicVersions(){
         return $this->hasMany('App\TopicVersion');
+    }
+
+    public function flags(){
+        return $this->belongsToMany('App\Flag', 'flag_topic')->withTimestamps()->withPivot('active', 'created_by','id');
     }
 }
