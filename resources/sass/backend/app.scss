@@ -1,0 +1,181 @@
+//<editor-fold desc="Bootstrap Configs, Variables and Overrides">
+
+/**   VARIABLES   **/
+$primary-color:         #484848;
+$primary-dark:          #363D44;
+$primary-darker:        #232A30;
+$primary-light:         #5E666E;
+$primary-lighter:       #737C85;
+$secondary-color:       #BBBBBB;
+$transparent-light:     #FFF0;
+$transparent-dark:      #0000;
+
+/**   BOOTSTRAP OVERRIDE   **/
+$primary:       $primary-color;
+$secondary:     $secondary-color;
+
+@import 'node_modules/bootstrap/scss/functions';
+@import 'node_modules/bootstrap/scss/variables';
+
+$custom-colors: (
+        "primary-dark":         $primary-dark,
+        "primary-darker":       $primary-darker,
+        "primary-light":        $primary-light,
+        "primary-lighter":      $primary-lighter,
+        "transparent-light":    $transparent-light,
+        "transparent-dark":     $transparent-dark,
+);
+
+$position-values: ( // Example: top-5 left-50 (Bootstrap only has 0,25,75,100)
+        0: 0,
+        5: 5%,
+        10: 10%,
+        50: 50%,
+        100: 100%
+);
+
+$theme-colors: map-merge($theme-colors, $custom-colors);
+$enable-negative-margins: true;
+
+// Load bootstrap
+@import "bootstrap/scss/bootstrap";
+
+//</editor-fold>
+
+//<editor-fold desc="Base CSS Variables">
+
+:root {
+    --primary-color:    #{$primary-color};
+    --primary-dark:     #{$primary-dark};
+    --primary-darker:   #{$primary-darker};
+    --primary-light:     #{$primary-light};
+    --primary-lighter:   #{$primary-lighter};
+    --secondary-color:  #{$secondary-color};
+
+    --gray:#828282;
+    --light-gray: #ededed;
+    --very-light-gray: #f8f8f8;
+    --dark-gray: #414141;
+    --very-dark-gray: #3a3a3a;
+}
+
+//</editor-fold>
+
+//<editor-fold desc="Internal Sass Files">
+
+// Load spinner
+@import "load-spinner";
+@import "layout";
+
+// json table
+@import "json-table";
+
+//</editor-fold>
+
+//<editor-fold desc="Rappasoft Tables">
+table {
+    --bs-table-striped-color: #fbfbfb;
+    --bs-table-striped-bg: #fbfbfb !important;
+}
+
+.laravel-livewire-table td a:link {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.laravel-livewire-table table a:hover {
+    color: var(--bs-primary);
+    text-decoration: underline;
+}
+
+.laravel-livewire-table table .btn-fontawesome-icon {
+    font-family: "Font Awesome 6 Free";
+    text-decoration: none !important;
+}
+//</editor-fold>
+
+//<editor-fold desc="Defaults">
+html {
+    font-size: 0.95rem;
+}
+
+*{
+    font-family: 'Roboto', sans-serif;
+}
+//</editor-fold>
+
+//<editor-fold desc="Files">
+.block-show{
+    opacity: 1;
+}
+.block-hide{
+    opacity: 0;
+}
+.file-upload-progress{
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    transition: opacity 1s ease-in-out;
+}
+//</editor-fold>
+
+//<editor-fold desc="Menus Manager (CRUD)">
+.menu-list .list-group-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0px 0px 10px 4px hsl(323deg 12.22% 7.08% / 50%);
+}
+//</editor-fold>
+
+//<editor-fold desc="Global SCSS">
+.loading-overlay {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    background-color: #FCFCFCC9;
+    z-index: 999;
+}
+
+// Remove button focus at SweetAlert2 modal
+.swal2-popup .swal2-styled:focus {
+    box-shadow: none !important;
+}
+//</editor-fold>
+
+//<editor-fold desc="CMS">
+.modal-section-button {
+    border: 0;
+    display: inline-block;
+    padding: 0;
+    text-align: center;
+    max-width: 70px;
+    background-color: white;
+    color: var(--very-dark-gray);
+    font-size: 0.9rem;
+}
+
+.modal-section-button img {
+    width: 70px;
+}
+//</editor-fold>
+
+//Use this to group CSS
+//<editor-fold desc="">
+//</editor-fold>
+
+
+/**  File Components  **/
+.image-overlay .action-btn {
+    background-color: #fff;
+    font-size: .75rem;
+    padding: 0.35rem;
+    border-radius: 50%;
+    opacity: .35;
+    filter: invert(1) grayscale(100%) brightness(200%);
+    transition: background-color 150ms, opacity 150ms;
+}
+
+.image-overlay .action-btn:hover {
+    opacity: .7;
+}

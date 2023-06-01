@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="125.41935" height="119.22581" viewBox="0 0 125.41935 119.22581">
+    <defs>
+        <style>.a{fill:#2c6899;}.b{font-size:21.62701px;font-family:Roboto-Medium,
+            'Roboto', sans-serif;font-weight:500;}.b,.c{fill:#fff;}
+        </style>
+    </defs>
+    <rect class="a" width="125.41935" height="119.22581" rx="6"/>
+    <text class="b" transform="translate(22.20253 43.7395)">Heading</text>
+    <rect class="c" x="22.20136" y="48.26785" width="77.53769" height="3.22396" rx="0.47339"/>
+    <rect class="c" x="22.20136" y="55.4103" width="77.53769" height="3.22396" rx="0.47339"/>
+    <rect class="c" x="22.20136" y="62.55274" width="77.53769" height="3.22396" rx="0.47339"/>
+    <rect class="c" x="22.20136" y="69.69518" width="77.53769" height="3.22396" rx="0.47339"/>
+    <rect class="c" x="22.20136" y="76.83763" width="77.53769" height="3.22396" rx="0.47339"/>
+    <rect class="c" x="22.20136" y="83.98007" width="62.29912" height="3.22396" rx="0.47339"/>
+</svg>

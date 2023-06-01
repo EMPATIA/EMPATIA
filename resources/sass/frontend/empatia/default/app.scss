@@ -1,0 +1,326 @@
+/**   VARIABLES   **/
+
+$primary-color:         #2DC653;
+$primary-dark:          #208B3A;
+$primary-darker:        #163D1E;
+$secondary-color:       #484848;
+$light-red:             #DC6767;
+$transparent-light:     #FFF0;
+$transparent-dark:      #0000;
+$light-grey:            #F9FAFB;
+
+/**   BOOTSTRAP OVERRIDE   **/
+
+$primary:       $primary-color;
+$secondary:     $secondary-color;
+
+@import 'node_modules/bootstrap/scss/functions';
+@import 'node_modules/bootstrap/scss/variables';
+
+$custom-colors: (
+    "primary-dark":         $primary-dark,
+    "primary-darker":       $primary-darker,
+    "light-red":            $light-red,
+    "transparent-light":    $transparent-light,
+    "transparent-dark":     $transparent-dark,
+);
+
+$position-values: (
+    0: 0,
+    5: 5%,
+    10: 10%,
+    50: 50%,
+    100: 100%
+);
+
+$theme-colors: map-merge($theme-colors, $custom-colors);
+
+$enable-negative-margins: true;
+
+
+/**   EXTERNAL LIBRARIES   **/
+
+@import "~bootstrap/scss/bootstrap";
+
+$fa-font-path: "/build/assets/frontend/#{$project-path}/webfonts";
+@import 'node_modules/@fortawesome/fontawesome-free/scss/fontawesome.scss';
+@import 'node_modules/@fortawesome/fontawesome-free/scss/brands.scss';
+@import 'node_modules/@fortawesome/fontawesome-free/scss/regular.scss';
+@import 'node_modules/@fortawesome/fontawesome-free/scss/solid.scss';
+@import 'node_modules/@fortawesome/fontawesome-free/scss/v4-shims.scss';
+
+
+
+/**   FONTS   **/
+
+//@import 'fonts/montserrat';
+
+
+
+/**   BASE CSS VARIABLES   **/
+
+:root {
+    --primary-color:    #{$primary-color};
+    --primary-dark:     #{$primary-dark};
+    --secondary-color:  #{$secondary-color};
+
+    --light-red:        #{$light-red};
+
+    --gray:#828282;
+    --light-gray: #ededed;
+    --very-light-gray: #f8f8f8;
+    --dark-gray: #414141;
+    --very-dark-gray: #3a3a3a;
+}
+
+
+
+/**   INTERNAL SASS FILES   **/
+
+//@import 'bs-borders';
+//@import 'bs-buttons';
+//@import 'home';
+//@import 'footer';
+//@import 'cbs';
+//@import 'topics-list';
+//@import 'bs-modal';
+
+
+
+/**   STYLES   **/
+
+*{
+    font-family: 'Montserrat', Verdana, sans-serif;
+}
+
+body {
+    color: var(--secondary-color);
+}
+
+h1, h2, h3 {
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+h2 {
+    font-size: calc(1.5rem + 1.5vw);
+}
+
+.fw-bold h1,
+.fw-bold h4,
+.fw-bold h5 {
+    font-weight: bold;
+}
+
+.fw-bolder h1{
+    font-weight: bolder;
+}
+
+a {
+    text-decoration: underline 1px rgba(0,0,0,0);
+    transition: color 150ms, text-decoration-color 150ms;
+}
+
+a:hover {
+    text-decoration-color: inherit;
+}
+
+.main-nav .nav-link{
+    text-transform: uppercase;
+}
+
+.zoom, .zoom-1, .zoom-2, .zoom-3, {
+    transition: all .2s;
+}
+.zoom:hover {
+    transform: scale(1.05);
+}
+.zoom-1:hover {
+    transform: scale(1.025);
+}
+.zoom-2:hover {
+    transform: scale(1.05);
+}
+.zoom-3:hover {
+    transform: scale(1.1);
+}
+
+/* TODO: adicionar 'role="button"' a qualquer elemento coloca o cursor a pointer */
+.hoverable {
+    cursor: pointer;
+}
+.hover-shadow{
+    transition: all .2s;
+}
+.hover-shadow:hover{
+    box-shadow: #{$box-shadow};
+}
+
+.fill-parent {
+    width: 100% !important;
+    height: 100% !important;
+}
+.fill-window {
+    width: 100vw !important;
+    height: 100vh !important;
+}
+
+.loading-overlay {
+    width: 100%;
+    height: 100%;
+    min-height: 3rem;
+    position: absolute;
+    top: 0;
+    background-color: #FCFCFCC9;
+    z-index: 1060;
+}
+
+.bg-primary-gradient{
+    background:linear-gradient(180deg, #{$primary} 0%, #{$primary-dark} 100%);
+}
+
+@media (min-width: 768px) {
+    .w-md-100{
+        width: 100%;
+    }
+}
+
+@media (min-width: 992px) {
+    .w-lg-100{
+        width: 100%;
+    }
+}
+
+
+
+.input-with-icon select.form-control{
+    appearance: none;
+}
+.input-with-icon {
+    display: grid;
+    grid-template-areas: "select";
+    align-items: center;
+}
+.input-with-icon input::-webkit-calendar-picker-indicator {
+    opacity: 0;
+    background-color: unset;
+    position: absolute;
+    right: .5rem;
+}
+.input-with-icon input,
+.input-with-icon select {
+    grid-area: select;
+    padding-right: 2.5rem;
+    background-color: transparent;
+}
+.input-with-icon::after {
+    content: "";
+    font-family: "Font Awesome 5 Free";
+    font-weight: normal;
+    color: var(--be-primary-blue) !important;
+    padding: .375rem .75rem;
+    grid-area: select;
+    justify-self: end;
+}
+.input-with-icon.chevron-down::after {
+    content: "\f078";
+    color: #2C9994;
+    font-weight: 800;
+}
+.input-with-icon.clock::after {
+    content: "\f017";
+}
+.input-with-icon.calendar::after {
+    content: "\f133";
+}
+
+
+.widget-author {
+    margin-bottom: 58px;
+}
+
+.bg-light-grey{
+   background-color: var(--very-light-gray);
+}
+.profile-card {
+    position: relative;
+    background-color: white;
+    box-shadow: 0 12px 20px 1px rgba(64, 64, 64, .09);
+}
+
+
+//.profile-card .profile-card-profile {
+//    display: table;
+//    /*position: relative;
+//    margin-top: -22px;
+//    padding-right: 15px;
+//    padding-bottom: 16px;
+//    padding-left: 20px;
+//}
+//
+//.profile-card .profile-card-profile .profile-card-avatar, .profile-card .profile-card-profile .profile-card-details {
+//    display: table-cell;
+//    vertical-align: middle;
+//}
+
+
+.profile-card-name {
+    font-size: 14px;
+    font-weight: bold;
+}
+
+
+.list-group-item.active:not(.disabled) {
+    border-color: #e7e7e7;
+    background: #fff;
+    color: var(--primary-color);
+    cursor: default;
+    pointer-events: none;
+}
+
+.list-group-flush:last-child .list-group-item:last-child {
+    border-bottom: 0;
+}
+
+.list-group-flush .list-group-item {
+    border-right: 0 !important;
+    border-left: 0 !important;
+}
+
+
+.list-group-item:last-child {
+    margin-bottom: 0;
+    border-bottom-right-radius: .25rem;
+    border-bottom-left-radius: .25rem;
+}
+
+
+.list-group-item {
+    padding-top: 16px;
+    padding-bottom: 16px;
+    -webkit-transition: all .3s;
+    transition: all .3s;
+    border: 1px solid #e7e7e7 !important;
+    border-radius: 0 !important;
+    color: #404040;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    text-decoration: none;
+}
+
+.list-group-item.active:not(.disabled)::before {
+    background-color: var(--primary-color);
+}
+
+.list-group-item::before {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background-color: transparent;
+    content: '';
+}

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="125.41935" height="119.22581" viewBox="0 0 125.41935 119.22581">
+    <defs>
+        <style>.a,.c{fill:#2c6899;}.b{fill:#fff;}.e{font-size:13.62632px;font-family:Roboto-Medium,
+            Roboto, sans-serif;font-weight:500;fill:#2c9895;}.d{letter-spacing:-0.01469em;}
+        </style>
+    </defs>
+    <rect class="a" width="125.41935" height="119.22581" rx="6"/>
+    <rect class="b" x="24.10179" y="45.98658" width="77.21577" height="27.25265" rx="10.019"/>
+    <text class="e" transform="translate(42.52668 63.90039)">But
+        <tspan class="d" x="20.69922" y="0">t</tspan>
+        <tspan x="25.03027" y="0">on</tspan>
+    </text>
+</svg>

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="125.41935" height="119.22581" viewBox="0 0 125.41935 119.22581">
+    <defs>
+        <style>.a{fill:#2c6899;}.b,.c{fill:#fff;}.f{font-size:16.76985px;font-family:Roboto-Medium,
+            Roboto, sans-serif;font-weight:500;stroke:none;fill:#fff;}.d{letter-spacing:-0.04344em;}
+        </style>
+    </defs>
+    <rect class="a" width="125.41935" height="119.22581" rx="6"/>
+    <path class="b"
+          d="M102.75075,45.9518a4.20362,4.20362,0,0,1,4.199,4.19891V87.30989a4.20362,4.20362,0,0,1-4.199,4.19892H22.66847a4.20362,4.20362,0,0,1-4.199-4.19892V50.15071a4.20362,4.20362,0,0,1,4.199-4.19891h80.08228m0-1.26883H22.66847a5.48382,5.48382,0,0,0-5.46777,5.46774V87.30989a5.4838,5.4838,0,0,0,5.46777,5.46775h80.08228a5.4838,5.4838,0,0,0,5.46777-5.46775V50.15071a5.48382,5.48382,0,0,0-5.46777-5.46774Z"/>
+    <rect class="b" x="28.03855" y="56.59285" width="69.34225" height="3.80024" rx="0.47339"/>
+    <rect class="b" x="28.03855" y="64.60863" width="69.34225" height="3.80024" rx="0.47339"/>
+    <rect class="b" x="28.03855" y="72.62441" width="36.95686" height="3.80024" rx="0.47339"/>
+    <text class="f" transform="translate(17.20108 40.79419)">
+        <tspan class="d">T</tspan>
+        <tspan x="9.44922" y="0">ext</tspan>
+    </text>
+</svg>

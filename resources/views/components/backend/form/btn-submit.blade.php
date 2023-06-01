@@ -1,0 +1,1 @@
+<x-form-submit {{ $attributes->merge(['class' => 'btn-primary']) }}>{{ $slot }}</x-form-submit>
